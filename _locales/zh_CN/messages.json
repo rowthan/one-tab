@@ -1,0 +1,11 @@
+{
+    "extensionName": {
+      "message": "one-tab"
+    },
+    "extensionDescription": {
+      "message": "一个标签页，多个网页共存"
+    },
+    "browserActionTitle": {
+      "message": "one tab, more page"
+    }
+  }
