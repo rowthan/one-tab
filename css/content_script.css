@@ -16,6 +16,13 @@
     right: 0;
     bottom: 0;
 }
+
+.one-tab-page-switch-button{
+    width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .active-frame-button{
     background: red;
     color: #fff;

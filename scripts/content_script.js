@@ -24,22 +24,23 @@ const addFrameToStorage = function (frame) {
     initFrames()
 }
 
+window.addEventListener('keyup',function (e) {
+    // TODO 更多类型可输入区判断
+    if(e.target.tagName!=="INPUT"){
+        const number =  e.keyCode-49;
+        if(number>=-1){
+            setActive(number)
+        }else if([37,39].indexOf(e.keyCode)>-1){
+            const step = (38-e.keyCode) * 0.1
+            console.log(step)
+        }
+    }
+})
+
 
 const isOriginWindow = window.top === window
 
 if(isOriginWindow){
-    window.addEventListener('keyup',function (e) {
-        // TODO 更多类型可输入区判断
-        if(e.target.tagName!=="INPUT"){
-            const number =  e.keyCode-49;
-            if(number>=-1){
-                setActive(number)
-            }else if([37,39].indexOf(e.keyCode)>-1){
-                const step = (38-e.keyCode) * 0.1
-
-            }
-        }
-    })
     const defaultMain = {
         alpha:1,
     }
@@ -115,6 +116,21 @@ if(isOriginWindow){
             }
         }
     );
+
+    // 监听来自 frame 发送的请求
+    window.addEventListener('message',function(e){
+        switch (e.data.type) {
+            case 'activeFrame':
+                setActive(e.data.activeIndex)
+                break
+            case 'saveFrameAlpha':
+                const frameIndex = e.data.frameIndex;
+                const alpha = e.data.alpha;
+                const storage = getStorage()
+                storage[frameIndex].alpha = alpha;
+                setStorage(storage)
+        }
+    },false);
 } else {
     // 监听来自 主页 发送的命令
     window.addEventListener('message',function(e){
@@ -137,33 +153,9 @@ function initFrames() {
     })
 
     // 初始化
-    const covers = getStorage();
-    let hasMain = false
-    let hasFrame = false
-    covers.forEach(function (cover) {
-        addFrameToHTML(cover.src)
-        // if(cover.isMain){
-        //     hasMain = true
-        // }else{
-        //     hasFrame = true
-        // }
     })
 
     setActive()
-    // // 存在主页，且存在frame
-    // if(hasMain && hasFrame){
-    //     document.body.style.display = 'none'
-    // }
-    // // 不存在主页，存在 frame
-    // if(hasFrame && !hasMain) {
-    //     covers.push({
-    //         src: window.location.href,
-    //         isMain:true,
-    //         alpha:1
-    //     })
-    //     setStorage(covers)
-    //     initFrames()
-    // }
 
     function addFrameToHTML(src){
         const iframe = document.createElement('iframe');
@@ -173,7 +165,16 @@ function initFrames() {
     }
 }
 
+// TODO 防抖
 function setActive(activeIndex=getStorage('one-tab-covers-main').activeIndex){
+    if(!isOriginWindow){
+        window.top.postMessage({
+            type: 'activeFrame',
+            activeIndex: activeIndex
+        },"*")
+        return
+    }
+
     const frames = document.getElementsByClassName('iframe-cover');
     activeIndex = activeIndex >= frames.length? -1: activeIndex
     document.body.style.zIndex = frames.length;
