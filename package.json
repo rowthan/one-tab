@@ -1,0 +1,25 @@
+{
+  "name": "one-tab",
+  "version": "0.0.2",
+  "description": "one tab, more page",
+  "main": " ",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rowthan/one-tab.git"
+  },
+  "keywords": [
+    "one",
+    "tab",
+    "more",
+    "page"
+  ],
+  "author": "rowthan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rowthan/one-tab/issues"
+  },
+  "homepage": "https://github.com/rowthan/one-tab#readme"
+}
