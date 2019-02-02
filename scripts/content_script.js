@@ -33,7 +33,9 @@ const dom = {
         }
         let bkCount = 0;
 
-        [].forEach.call(document.body.querySelectorAll("*"),function(element){
+
+
+        [].forEach.call(document.querySelectorAll("*"),function(element){
             const originBKColor = element.dataset.originBKColor || dom.getStyle(element,'background-color').toString();
             const colorRegx = /rgba?\((\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*.*?)\)/
             const matchResult = originBKColor.match(colorRegx) || [];
@@ -84,6 +86,18 @@ const dom = {
 
             asideContainer.id = 'frame-button-container';
             document.documentElement.insertBefore(asideContainer,document.body)
+
+            const handle = document.createElement('input')
+            handle.setAttribute("type","range");
+            handle.setAttribute("max",100);
+            handle.setAttribute("min",-1);
+            handle.setAttribute("value",50);
+            handle.onchange= function(event){
+                const alpha = event.target.value / 100.00
+                setAlpha(pageIndex,alpha)
+            }
+            asideContainer.appendChild(handle);
+
 
             framesInfo.forEach(function (cover,index) {
                 const container = document.createElement('div')
@@ -179,30 +193,30 @@ const modifyFrameInfo = function(index,value){
 }
 
 window.addEventListener('keyup',function (e) {
-    // TODO 更多类型可输入区判断
-    if(["INPUT","TEXTAREA"].indexOf(e.target.tagName)>-1 || e.target.isContentEditable){
-        const number =  e.keyCode-49;
-        if(number>=-1){
-            if(!isOriginWindow){
-                window.top.postMessage({
-                    type: PAGEACTIONTYPES.ACTIVE_FRAME,
-                    activeIndex: number
-                },"*")
-                return
-            }
-            setActive(number)
-        }else if([37,39].indexOf(e.keyCode)>-1){
-            const step = (38-e.keyCode) * 0.1
-            console.log(step)
+    const tagName = e.target.tagName;
+    if(["INPUT","TEXTAREA"].indexOf(tagName)>-1 || e.target.isContentEditable){
+        return;
+    }
+    const number =  e.keyCode-49;
+    if(number>=-1){
+        if(!isOriginWindow){
+            window.top.postMessage({
+                type: PAGEACTIONTYPES.ACTIVE_FRAME,
+                activeIndex: number
+            },"*")
+            return
         }
+        setActive(number)
+    }else if([37,39].indexOf(e.keyCode)>-1){
+        const step = (38-e.keyCode) * 0.1
+        console.log(step)
     }
 })
 
 const isOriginWindow = window.top === window;
 if(isOriginWindow){
     initFrames();
-    const mainInfo = getStorage()
-    setActive(mainInfo.activeIndex);
+
     const frames = getStorage(keys.frames.key);
     window.onload = function(){
         frames.forEach((item,index)=>
@@ -216,7 +230,6 @@ if(isOriginWindow){
                 case 'addFrame':
                     const src = request.data;
                     const mainProtocol = window.location.protocol;
-                    console.log(mainProtocol)
                     if(src.indexOf(mainProtocol)===-1){
                         sendResponse({success:false,errMsg:`主页协议为${mainProtocol},无法添加http协议网站。请访问http协议网站后，添加http网址`})
                         return;
@@ -241,18 +254,8 @@ if(isOriginWindow){
                     sendResponse({success: true})
                     break;
                 case 'setAlpha':
-                    if(request.frameIndex===-1){
-                        const storage = getStorage(keys.mainPage.key)
-                        storage.alpha = request.alpha;
-                        setStorage(storage,keys.mainPage.key)
-                        sendResponse({success:true})
-                    }else{
-                        const frame = getStorage()[request.frameIndex]
-                        frame.alpha = request.alpha
-                        frame.frameIndex = request.frameIndex
-                        modifyFrameInfo(request.frameIndex,frame)
-                        sendResponse({success:true})
-                    }
+                    setAlpha(request.frameIndex,request.alpha);
+                    sendResponse({success:true})
                     break;
                 case 'deleteFrame':
                     const removeIndex = request.frameIndex;
@@ -282,6 +285,7 @@ if(isOriginWindow){
     }
 
     function initFrames() {
+        // TODO 新增时 不影响其他frame再次加载
         [].forEach.call(document.querySelectorAll('.iframe-cover'), (frame)=> frame.parentElement.removeChild(frame));
         getStorage().forEach((cover)=> addFrameToHTML(cover.src));
         function addFrameToHTML(src){
@@ -290,6 +294,8 @@ if(isOriginWindow){
             iframe.className = 'iframe-cover';
             document.documentElement.insertBefore(iframe,document.body);
         }
+        const mainInfo = getStorage()
+        setActive(mainInfo.activeIndex);
     }
 
     function setActive(activeIndex=getStorage(keys.mainPage.key).activeIndex){
@@ -298,6 +304,19 @@ if(isOriginWindow){
         storage.activeIndex = activeIndex
         setStorage(storage,keys.mainPage.key)
         dom.activePage(activeIndex,framesInfo,storage.showButton);
+    }
+
+    function setAlpha(frameIndex,alpha) {
+        if(frameIndex===-1){
+            const storage = getStorage(keys.mainPage.key)
+            storage.alpha = alpha;
+            setStorage(storage,keys.mainPage.key)
+        }else{
+            const frame = getStorage()[frameIndex]
+            frame.alpha = alpha
+            frame.frameIndex = frameIndex
+            modifyFrameInfo(frameIndex,frame)
+        }
     }
 
     // 监听来自 frame 发送的请求
