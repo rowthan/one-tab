@@ -34,8 +34,16 @@ const dom = {
         let bkCount = 0;
 
 
-
         [].forEach.call(document.querySelectorAll("*"),function(element){
+            const opacity = element.dataset.opacity || dom.getStyle(element,'opacity') || 1
+            const originbkImage = element.dataset.originBKImage || dom.getStyle(element,'background-image');
+            const imageUrlReg = /url/;
+            // todo 避免 opacity 属性会被继承
+            if(element.tagName==="IMG"){
+                element.dataset.opacity = opacity
+                element.style.opacity = rate
+            }
+
             const originBKColor = element.dataset.originBKColor || dom.getStyle(element,'background-color').toString();
             const colorRegx = /rgba?\((\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*.*?)\)/
             const matchResult = originBKColor.match(colorRegx) || [];
