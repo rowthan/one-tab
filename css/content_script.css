@@ -21,6 +21,7 @@
     width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-align: left;
 }
 
 .active-frame-button{

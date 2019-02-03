@@ -16,7 +16,8 @@ const keys={
     }
 }
 
-const PAGEACTIONTYPES = {
+const PAGEACTIONS = {
+    SECURITY_KEY:'onetabmorepagepostmessagekey',
     CHANGE_COLOR:'changeColor',
     ACTIVE_FRAME:'activeFrame',
     SAVE_FAVICON:'saveFrameFavicon',
@@ -197,7 +198,7 @@ const modifyFrameInfo = function(index,value){
     frames.splice(index,1,value)
     setStorage(frames,keys.frames.key)
     const target = dom.getFrames()[value.frameIndex].contentWindow
-    target.postMessage({type:'inheritFrameInfo',frameInfo:value},"*");
+    target.postMessage({type:PAGEACTIONS.INHERIT_INFO,frameInfo:value,securityKey:PAGEACTIONS.SECURITY_KEY},"*");
 }
 
 window.addEventListener('keyup',function (e) {
@@ -209,8 +210,9 @@ window.addEventListener('keyup',function (e) {
     if(number>=-1){
         if(!isOriginWindow){
             window.top.postMessage({
-                type: PAGEACTIONTYPES.ACTIVE_FRAME,
-                activeIndex: number
+                type: PAGEACTIONS.ACTIVE_FRAME,
+                activeIndex: number,
+                securityKey: PAGEACTIONS.SECURITY_KEY
             },"*")
             return
         }
@@ -228,7 +230,11 @@ if(isOriginWindow){
     const frames = getStorage(keys.frames.key);
     window.onload = function(){
         frames.forEach((item,index)=>
-            window.frames[index].postMessage({type:'inheritFrameInfo',frameInfo:Object.assign(item,{frameIndex:index})},"*"))
+            window.frames[index].postMessage({
+                type: PAGEACTIONS.INHERIT_INFO,
+                frameInfo:Object.assign(item,{frameIndex:index}),
+                securityKey: PAGEACTIONS.SECURITY_KEY
+            },"*"))
     }
 
     // 监听来自popup的指令
@@ -329,12 +335,14 @@ if(isOriginWindow){
 
     // 监听来自 frame 发送的请求
     window.addEventListener('message',function(e){
-        // TODO 增加来源标识
+        if(e.data.securityKey!==PAGEACTIONS.SECURITY_KEY){
+            return;
+        }
         switch (e.data.type) {
-            case PAGEACTIONTYPES.ACTIVE_FRAME:
+            case PAGEACTIONS.ACTIVE_FRAME:
                 setActive(e.data.activeIndex)
                 break
-            case PAGEACTIONTYPES.SAVE_FAVICON:
+            case PAGEACTIONS.SAVE_FAVICON:
                 const stora = getStorage()
                 stora[e.data.frameIndex].favicon = e.data.favicon;
                 setStorage(stora)
@@ -346,14 +354,19 @@ if(isOriginWindow){
 } else {
     // 监听来自 主页 发送的命令
     window.addEventListener('message',function(e){
+        if(e.data.securityKey!==PAGEACTIONS.SECURITY_KEY){
+            return
+        }
         switch (e.data.type) {
-            case PAGEACTIONTYPES.CHANGE_COLOR:
+            case PAGEACTIONS.CHANGE_COLOR:
                 const alpha = e.data.alpha || 0.1
                 dom.changeAlpha(alpha)
                 break;
-            case PAGEACTIONTYPES.INHERIT_INFO:
+            case PAGEACTIONS.INHERIT_INFO:
                 setStorage(e.data.frameInfo,keys.mainPage.key)
                 break;
+            default:
+                console.warn('监听到未知类型请求：'+e.data.type)
         }
     },false);
 
@@ -362,9 +375,10 @@ if(isOriginWindow){
         const favicon = document.head.querySelector("link[rel~='icon']") || document.head.querySelector("link[rel~='shortcut']") ||  {}
         if(favicon.href && frameInfo.frameIndex!==undefined) {
             window.top.postMessage({
-                type: PAGEACTIONTYPES.SAVE_FAVICON,
+                type: PAGEACTIONS.SAVE_FAVICON,
                 favicon:favicon.href,
-                frameIndex:frameInfo.frameIndex
+                frameIndex:frameInfo.frameIndex,
+                securityKey: PAGEACTIONS.SECURITY_KEY
             },"*")
         }
     })
