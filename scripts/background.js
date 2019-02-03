@@ -18,3 +18,14 @@ var filter = {
 var extraInfoSpec = ["blocking", "responseHeaders"];
 /* 监听response headers接收事件*/
 chrome.webRequest.onHeadersReceived.addListener(callback, filter, extraInfoSpec);
+
+
+chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
+    console.log(sender)
+    switch (request.type) {
+        case 'setBadge':
+            const badge = request.number || ''
+            chrome.browserAction.setBadgeText({text:badge,tabId:sender.tab.id})
+            break;
+    }
+})

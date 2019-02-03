@@ -230,11 +230,10 @@ window.addEventListener('keyup',function (e) {
 const isOriginWindow = window.top === window;
 if(isOriginWindow){
     initFrames();
-
     const frames = getStorage(keys.frames.key);
     window.addEventListener('load', function(){
         frames.forEach((item,index)=>
-            window.frames[index].postMessage({
+            dom.getFrames()[index].contentWindow.postMessage({
                 type: PAGEACTIONS.INHERIT_INFO,
                 frameInfo:Object.assign(item,{frameIndex:index}),
                 securityKey: PAGEACTIONS.SECURITY_KEY
@@ -311,7 +310,9 @@ if(isOriginWindow){
     function initFrames() {
         // TODO 新增时 不影响其他frame再次加载
         [].forEach.call(document.querySelectorAll('.iframe-cover'), (frame)=> frame.parentElement.removeChild(frame));
-        getStorage().forEach((cover)=> addFrameToHTML(cover.src));
+        const frames = getStorage();
+        frames.forEach((cover)=> addFrameToHTML(cover.src));
+        chrome.extension.sendRequest({type: "setBadge",number:frames.length.toString()})
         function addFrameToHTML(src){
             const iframe = document.createElement('iframe');
             iframe.src = src;
