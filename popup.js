@@ -50,6 +50,10 @@ class Frames extends React.Component{
             <div>
                 <input type="range" max={100} min={-1} value={this.state.mainPage.alpha*100} onChange={(event)=>this.changeAlpha(-1,event.target.value)}/>
                 <label>
+                    <aside style={{backgroundImage: 'url("'+this.state.mainPage.favicon+'")',
+                        width:'14px',height:'14px',backgroundSize:'contain',display:'inline-block'
+                    }}>
+                    </aside>
                     <input checked={this.state.mainPage.activeIndex===-1} onChange={()=>this.setActive(-1)} name='activeFrame' type='radio'/>
                     主页
                 </label>

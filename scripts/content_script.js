@@ -159,6 +159,10 @@ const dom = {
     },
     getFrames:function () {
         return document.getElementsByClassName('iframe-cover')
+    },
+    getFavicon: function () {
+        const favicon = document.head.querySelector("link[rel~='icon']") || document.head.querySelector("link[rel~='shortcut']") ||  {}
+        return favicon.href;
     }
 }
 
@@ -228,14 +232,20 @@ if(isOriginWindow){
     initFrames();
 
     const frames = getStorage(keys.frames.key);
-    window.onload = function(){
+    window.addEventListener('load', function(){
         frames.forEach((item,index)=>
             window.frames[index].postMessage({
                 type: PAGEACTIONS.INHERIT_INFO,
                 frameInfo:Object.assign(item,{frameIndex:index}),
                 securityKey: PAGEACTIONS.SECURITY_KEY
-            },"*"))
-    }
+        },"*"));
+        const favicon = dom.getFavicon();
+        if(favicon){
+            const mainInfo = getStorage(keys.mainPage.key)
+            mainInfo.favicon = favicon;
+            setStorage(mainInfo,keys.mainPage.key)
+        }
+    })
 
     // 监听来自popup的指令
     chrome.extension.onMessage.addListener(
@@ -372,11 +382,12 @@ if(isOriginWindow){
 
     window.addEventListener('load',function () {
         const frameInfo = getStorage(keys.mainPage.key);
-        const favicon = document.head.querySelector("link[rel~='icon']") || document.head.querySelector("link[rel~='shortcut']") ||  {}
-        if(favicon.href && frameInfo.frameIndex!==undefined) {
+        const favicon = dom.getFavicon()
+        console.log('favicon:'+favicon)
+        if(favicon && frameInfo.frameIndex!==undefined) {
             window.top.postMessage({
                 type: PAGEACTIONS.SAVE_FAVICON,
-                favicon:favicon.href,
+                favicon:favicon,
                 frameIndex:frameInfo.frameIndex,
                 securityKey: PAGEACTIONS.SECURITY_KEY
             },"*")
@@ -385,7 +396,7 @@ if(isOriginWindow){
 }
 window.addEventListener('load',function () {
     const pageInfo = getStorage(keys.mainPage.key);
-    dom.changeAlpha(pageInfo.alpha||1)
+    dom.changeAlpha(pageInfo.alpha||1);
 })
 
 
