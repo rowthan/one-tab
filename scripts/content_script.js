@@ -312,7 +312,7 @@ if(isOriginWindow){
         [].forEach.call(document.querySelectorAll('.iframe-cover'), (frame)=> frame.parentElement.removeChild(frame));
         const frames = getStorage();
         frames.forEach((cover)=> addFrameToHTML(cover.src));
-        chrome.extension.sendRequest({type: "setBadge",number:frames.length.toString()})
+        chrome.extension.sendRequest({type: "setBadge",number:frames.length})
         function addFrameToHTML(src){
             const iframe = document.createElement('iframe');
             iframe.src = src;
@@ -384,7 +384,6 @@ if(isOriginWindow){
     window.addEventListener('load',function () {
         const frameInfo = getStorage(keys.mainPage.key);
         const favicon = dom.getFavicon()
-        console.log('favicon:'+favicon)
         if(favicon && frameInfo.frameIndex!==undefined) {
             window.top.postMessage({
                 type: PAGEACTIONS.SAVE_FAVICON,

@@ -2,7 +2,7 @@ var callback = function(details) {
     var headers = details.responseHeaders;
     for (var i = 0; i < headers.length; ++i) {
         // 移除X-Frame-Options字段
-        if (headers[i].name === 'X-Frame-Options') {
+        if (headers[i].name.toLowerCase() === 'x-frame-options') {
             headers.splice(i, 1);
             break;
         }
@@ -24,7 +24,7 @@ chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
     console.log(sender)
     switch (request.type) {
         case 'setBadge':
-            const badge = request.number || ''
+            const badge = request.number ? request.number+'' : ''
             chrome.browserAction.setBadgeText({text:badge,tabId:sender.tab.id})
             break;
     }
