@@ -21,11 +21,26 @@ chrome.webRequest.onHeadersReceived.addListener(callback, filter, extraInfoSpec)
 
 
 chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
-    console.log(sender)
     switch (request.type) {
         case 'setBadge':
             const badge = request.number ? request.number+'' : ''
             chrome.browserAction.setBadgeText({text:badge,tabId:sender.tab.id})
+            chrome.browserAction.setTitle({title:badge?'已合拢'+badge+"个网页":'',tabId:sender.tab.id})
             break;
     }
 })
+
+chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
+    const valid = tab.url.indexOf('http') > -1;
+    if(!valid){
+        chrome.browserAction.setIcon({
+            path:'images/icon-16-disable.png',
+            tabId:tab.id
+        })
+    }else{
+        chrome.browserAction.setIcon({
+            path:'images/icon-16.png',
+            tabId:tab.id
+        })
+    }
+});

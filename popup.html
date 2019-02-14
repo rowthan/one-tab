@@ -8,20 +8,43 @@
         input[type='range']{
             width: 50px;
         }
-        .link-src{
+        .src-info{
             display: inline-block;
-            width: 150px;
+            width: 200px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            vertical-align: sub;
         }
         .link-input{
             width: 200px;
         }
+        .tabs-handler{
+            margin-bottom: 14px;
+            vertical-align: sub;
+        }
+        .other-tab-icon{
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        .other-tab-icon img{
+            vertical-align: sub;
+        }
+        table{
+            border: 1px solid #dee4f5;
+            border-spacing: 0;
+            border-right: none;
+            border-bottom: none;
+        }
+        th,td{
+            border: 1px solid #dee4f5;
+            border-left: none;
+            border-top: none;
+        }
     </style>
 </head>
 <body>
-    <div id="popup" style="width: 400px;">
+    <div id="popup" style="width: 350px;">
 
     </div>
     <script src="react.js"></script>

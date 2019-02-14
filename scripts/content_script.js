@@ -162,7 +162,7 @@ const dom = {
     },
     getFavicon: function () {
         const favicon = document.head.querySelector("link[rel~='icon']") || document.head.querySelector("link[rel~='shortcut']") ||  {}
-        return favicon.href;
+        return favicon.href || '';
     }
 }
 
@@ -238,30 +238,37 @@ if(isOriginWindow){
                 frameInfo:Object.assign(item,{frameIndex:index}),
                 securityKey: PAGEACTIONS.SECURITY_KEY
         },"*"));
-        const favicon = dom.getFavicon();
-        if(favicon){
-            const mainInfo = getStorage(keys.mainPage.key)
-            mainInfo.favicon = favicon;
-            setStorage(mainInfo,keys.mainPage.key)
-        }
+        const mainInfo = getStorage(keys.mainPage.key)
+        mainInfo.favicon = dom.getFavicon();
+        mainInfo.title = document.title
+        mainInfo.url = window.location.href
+        setStorage(mainInfo,keys.mainPage.key)
     })
 
     // 监听来自popup的指令
     chrome.extension.onMessage.addListener(
         function(request, sender, sendResponse) {
             switch (request.type) {
-                case 'addFrame':
-                    const src = request.data;
+                case 'addFrames':
+                    const frames = request.frames;
                     const mainProtocol = window.location.protocol;
-                    if(src.indexOf(mainProtocol)===-1){
-                        sendResponse({success:false,errMsg:`主页协议为${mainProtocol},无法添加http协议网站。请访问http协议网站后，添加http网址`})
-                        return;
-                    }
+                    // if(src.indexOf(mainProtocol)===-1){
+                    //     sendResponse({success:false,errMsg:`主页协议为${mainProtocol},无法添加http协议网站。请访问http协议网站后，添加http网址`})
+                    //     return;
+                    // }
+                    const tempFrames = [];
+                    frames.forEach((frame)=>{
+                        tempFrames.push({
+                            src:frame.url,
+                            favicon:frame.favicon,
+                            alpha:1,
+                        })
+                    });
 
-                    addFrameToStorage({
-                        src:src,
-                        alpha:1,
-                    })
+                    let originF = getStorage();
+                    originF = originF.concat(tempFrames);
+                    setStorage(originF)
+                    initFrames()
                     sendResponse({success:true})
                     break;
                 case 'getInfos':
@@ -295,19 +302,19 @@ if(isOriginWindow){
                     setActive()
                     sendResponse({success:true})
                     break;
+                case 'closeOthers':
+                    setStorage([]);
+                    initFrames();
+                    sendResponse({success:true});
+                    break;
                 default:
                     // sendResponse({success:false,errMsg:'未知类型的命令'})
             }
         }
     );
-    function addFrameToStorage (frame) {
-        let storage = getStorage();
-        storage.push(frame);
-        setStorage(storage)
-        initFrames()
-    }
 
     function initFrames() {
+        // TODO 修改title 显示当前激活项
         // TODO 新增时 不影响其他frame再次加载
         [].forEach.call(document.querySelectorAll('.iframe-cover'), (frame)=> frame.parentElement.removeChild(frame));
         const frames = getStorage();
@@ -356,6 +363,7 @@ if(isOriginWindow){
             case PAGEACTIONS.SAVE_FAVICON:
                 const stora = getStorage()
                 stora[e.data.frameIndex].favicon = e.data.favicon;
+                stora[e.data.frameIndex].title = e.data.title;
                 setStorage(stora)
                 break;
             default:
@@ -388,6 +396,7 @@ if(isOriginWindow){
             window.top.postMessage({
                 type: PAGEACTIONS.SAVE_FAVICON,
                 favicon:favicon,
+                title: document.title,
                 frameIndex:frameInfo.frameIndex,
                 securityKey: PAGEACTIONS.SECURITY_KEY
             },"*")
