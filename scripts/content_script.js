@@ -24,8 +24,23 @@ const PAGEACTIONS = {
     INHERIT_INFO:'inheritFrameInfo',
 }
 
+
+function debounce(fun,timeout) {
+    let timer = null;
+    let arguments = [];
+    return (...arg)=>{
+        arguments = arg;
+        if(!timer){
+            timer = setTimeout(()=>{
+                fun && fun.apply(null,arguments)
+                timer = null;
+            },timeout)
+        }
+    }
+}
+
 const dom = {
-    changeAlpha: function(rate) {
+    changeAlpha: debounce(function(rate) {
         if(rate<=0){
             document.body.style.display='none'
             return
@@ -63,8 +78,9 @@ const dom = {
                 }
             }
         })
-    },
-    activePage: function (pageIndex=-1,framesInfo=[],showButton=false) {
+        console.log('复杂度'+bkCount)
+    },150),
+    activePage: function (pageIndex=-1,framesInfo=[],showButton=false,mainAlpha=1) {
         const frames = dom.getFrames();
         pageIndex = pageIndex >= frames.length? -1: pageIndex
         document.body.style.zIndex = frames.length;
@@ -100,9 +116,10 @@ const dom = {
             handle.setAttribute("type","range");
             handle.setAttribute("max",100);
             handle.setAttribute("min",-1);
-            handle.setAttribute("value",50);
-            handle.onchange= function(event){
-                const alpha = event.target.value / 100.00
+            const value = pageIndex === -1 ? mainAlpha*100 : framesInfo[pageIndex].alpha * 100
+            handle.setAttribute("value",value);
+            handle.oninput= function(event){
+                const alpha = event.target.value / 100.00;
                 setAlpha(pageIndex,alpha)
             }
             asideContainer.appendChild(handle);
@@ -335,7 +352,7 @@ if(isOriginWindow){
         const storage = getStorage(keys.mainPage.key)
         storage.activeIndex = activeIndex
         setStorage(storage,keys.mainPage.key)
-        dom.activePage(activeIndex,framesInfo,storage.showButton);
+        dom.activePage(activeIndex,framesInfo,storage.showButton,storage.alpha);
     }
 
     function setAlpha(frameIndex,alpha) {
