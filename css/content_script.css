@@ -12,6 +12,7 @@
 
 #frame-button-container{
     position: fixed;
+    font-size: 14px;
     z-index: 999;
     right: 0;
     bottom: 0;

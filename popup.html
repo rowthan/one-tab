@@ -8,7 +8,12 @@
         input[type='range']{
             width: 50px;
         }
+        .tip-info{
+            color:#333;
+            text-indent: 1em;
+        }
         .src-info{
+            cursor: pointer;
             display: inline-block;
             width: 200px;
             overflow: hidden;
@@ -23,11 +28,14 @@
             margin-bottom: 14px;
             vertical-align: sub;
         }
-        .other-tab-icon{
-            margin-right: 8px;
+        .site-icon{
+            margin-left: 8px;
             cursor: pointer;
         }
-        .other-tab-icon img{
+        .gray{
+            filter: grayscale(100%);
+        }
+        .site-icon img{
             vertical-align: sub;
         }
         table{
@@ -40,6 +48,13 @@
             border: 1px solid #dee4f5;
             border-left: none;
             border-top: none;
+        }
+        button{
+            background: #4584e8;
+            border: #4584e8;
+            border-radius: 4px;
+            cursor: pointer;
+            color:#fff;
         }
     </style>
 </head>
