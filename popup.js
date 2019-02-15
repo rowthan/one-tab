@@ -1,13 +1,16 @@
 function sendMessage(req,cb) {
     chrome.tabs.getSelected(null, function(tab) {
-        chrome.tabs.sendMessage(tab.id, req, function(response) {
+        if(!req.targetTabid && tab.url.indexOf('http')===-1){
+            cb({success:false,errMsg:'拒绝通信'});
+            return false;
+        }
+        const tabid = req.targetTabid || tab.id;
+        chrome.tabs.sendMessage(tabid, req, function(response) {
             response = response || {success:false,errMsg:'通信失败，请重试'}
             typeof cb === 'function' && cb(response)
         });
     });
 }
-
-
 
 
 class Frames extends React.Component{
@@ -16,8 +19,7 @@ class Frames extends React.Component{
         super(props)
         this.state = {
             frames:[],
-            mainPage:{alpha:1},
-            activeFrame:'',
+            mainPage:{alpha:1,activeIndex: null,favicon:'',title:'',url:''},
             errorMsg:'',
             otherTabs:[]
         }
@@ -32,98 +34,99 @@ class Frames extends React.Component{
     }
 
     render(){
-        if(!this.state.mainPage.url){
-            return (
-                <div>
-                    <div>
-                        无法聚合到本页面，原因：本页无网页内容。
-                        <hr/>
-                        解决：输入网址访问任意网页
-                    </div>
-                </div>
-            )
-        }
         return (
             <div>
                 <div className='tabs-handler'>
-                    <button disabled={this.state.otherTabs.length===0} onClick={this.shutTogetherTabs}>聚合{this.state.otherTabs.length?this.state.otherTabs.length+'个':''}标签页</button>
+                    <button disabled={this.state.otherTabs.length===0} onClick={this.shutTogetherTabs}>
+                        聚合{this.state.otherTabs.length?this.state.otherTabs.length+'个':''}标签页
+                    </button>
+                    {
+                        this.state.otherTabs.length === 0 &&
+                        <span className='tip-info'>
+                            未发现可聚合的标签页
+                        </span>
+                    }
                     <span>
                     {
                         this.state.otherTabs.map((tab,index)=>
-                            <span onClick={()=>this.addTabToFrames(tab)} className='other-tab-icon' key={index} title={'点击添加：'+tab.title}><img width={14} height={14} src={tab.favIconUrl}/></span>
+                            <span onClick={()=>this.addTabToFrames(tab)} className='site-icon' key={index} title={'点击添加：'+tab.title}>
+                                <img width={14} height={14} src={tab.favIconUrl}/>
+                            </span>
                         )
                     }
-                </span>
+                    </span>
                 </div>
-                <table>
-                    <thead>
-                    <tr>
-                        <th>不透明度</th>
-                        <th>网址</th>
-                        <th style={{width:'90px'}}>操作</th>
-                    </tr>
-                    </thead>
 
-                    <tbody>
-                    {
-                        this.state.frames.map((frame,index)=>
-                            <tr key={frame.src+index}>
+                {
+                    this.state.mainPage.url &&
+                    <section>
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>不透明度</th>
+                                <th>网址</th>
+                                <th style={{width:'90px'}}>操作</th>
+                            </tr>
+                            </thead>
+
+                            <tbody>
+                            {
+                                this.state.frames.map((frame,index)=>
+                                    <tr key={frame.src+index}>
+                                        <td>
+                                            <input type="range" max={100} min={-1} value={frame.alpha*100} onChange={(event)=>this.changeAlpha(index,event.target.value)}/>
+                                        </td>
+                                        <td>
+                                            <label className='src-info' onClick={()=>this.setActive(index)}>
+                                                <aside className={`site-icon ${this.state.mainPage.activeIndex === index ? '' :'gray'}`} style={{backgroundImage: 'url("'+frame.favicon+'")',
+                                                    width:'14px',height:'14px',backgroundSize:'contain',display:'inline-block',
+                                                    verticalAlign:'sub'
+
+                                                }}>
+                                                </aside>
+                                                <span className="link-src" >{frame.src}</span>
+                                            </label>
+                                        </td>
+                                        <td>
+                                            <a href={frame.src} target="_blank">打开</a>
+                                            <button  onClick={()=>this.deleteFrame(index)}>删除</button>
+                                        </td>
+                                    </tr>
+                                )
+                            }
+                            <tr>
                                 <td>
-                                    <input type="range" max={100} min={-1} value={frame.alpha*100} onChange={(event)=>this.changeAlpha(index,event.target.value)}/>
+                                    <input type="range" max={100} min={-1} value={this.state.mainPage.alpha*100} onChange={(event)=>this.changeAlpha(-1,event.target.value)}/>
                                 </td>
                                 <td>
-                                    <label className='src-info'>
-                                        <aside style={{backgroundImage: 'url("'+frame.favicon+'")',
+                                    <label className='src-info' onClick={()=>this.setActive(-1)}>
+                                        <aside className={`site-icon ${this.state.mainPage.activeIndex === -1 ? '' :'gray'}`} style={{backgroundImage: 'url("'+this.state.mainPage.favicon+'")',
                                             width:'14px',height:'14px',backgroundSize:'contain',display:'inline-block',
                                             verticalAlign:'sub'
-
                                         }}>
                                         </aside>
-                                        <input checked={this.state.mainPage.activeIndex === index} onChange={()=>this.setActive(index)} name='activeFrame' type='radio' value={frame.src} />
-                                        <span className="link-src" >{frame.src}</span>
+                                        <span className="link-src">
+                                    主页 {this.state.mainPage.url}
+                                </span>
                                     </label>
                                 </td>
                                 <td>
-                                    <a href={frame.src} target="_blank">打开</a>
-                                    <button  onClick={()=>this.deleteFrame(index)}>删除</button>
+                                    {
+                                        this.state.frames.length>0 &&
+                                        <div>
+                                            <button onClick={this.closeOthers}>删除嵌入页</button>
+                                            <button onClick={this.popupFrames}>弹出嵌入页</button>
+                                        </div>
+                                    }
                                 </td>
                             </tr>
-                        )
-                    }
-                    <tr>
-                        <td>
-                            <input type="range" max={100} min={-1} value={this.state.mainPage.alpha*100} onChange={(event)=>this.changeAlpha(-1,event.target.value)}/>
-                        </td>
-                        <td>
-                            <label className='src-info'>
-                                <aside style={{backgroundImage: 'url("'+this.state.mainPage.favicon+'")',
-                                    width:'14px',height:'14px',backgroundSize:'contain',display:'inline-block',
-                                    verticalAlign:'sub'
-                                }}>
-                                </aside>
-                                <input checked={this.state.mainPage.activeIndex===-1} onChange={()=>this.setActive(-1)} name='activeFrame' type='radio'/>
-                                <span className="link-src">
-                                    主页 {this.state.mainPage.url}
-                                </span>
-                            </label>
-                        </td>
-                        <td>
-                            {
-                                this.state.frames.length>0 &&
-                                <div>
-                                    <button onClick={this.closeOthers}>删除嵌入页</button>
-                                    <button onClick={this.popupFrames}>弹出嵌入页</button>
-                                </div>
-                            }
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
-
-                <div>
-                    <input type="checkbox" onChange={this.toggleShowButton} value={this.state.mainPage.showButton} checked={this.state.mainPage.showButton}/> 显示按钮
-                </div>
-
+                            </tbody>
+                        </table>
+                        <div>
+                            <input type="checkbox" onChange={this.toggleShowButton} value={this.state.mainPage.showButton} checked={this.state.mainPage.showButton}/> 显示按钮
+                        </div>
+                    </section>
+                }
                 <div>
                     {this.state.errorMsg}
                 </div>
@@ -136,23 +139,21 @@ class Frames extends React.Component{
     }
 
     initPage() {
-        const that = this;
-        chrome.tabs.getAllInWindow(null, function(result){
-            console.log(result)
+        chrome.tabs.getAllInWindow(null,(result)=>{
             const tabs = []
             result.forEach((tab)=>{
                 if(tab.active===false && tab.url.indexOf('http')>-1 && tab.title.indexOf('聚合页：')===-1){
                     tabs.push(tab)
                 }
             })
-            that.setState({
+            this.setState({
                 otherTabs:tabs
             })
         })
 
-        sendMessage({type:'getInfos'},function (result) {
+        sendMessage({type:'getInfos'}, (result)=> {
             if(result.success){
-                that.setState({
+                this.setState({
                     frames: result.frames,
                     mainPage: result.mainPage
                 })
@@ -169,9 +170,7 @@ class Frames extends React.Component{
     }
     changeAlpha(index,alpha) {
         sendMessage({type:'setAlpha',frameIndex:index,alpha:alpha/100.00},(result)=> {
-            if(result.success){
-                this.initPage()
-            }
+            this.initPage()
         });
     }
     deleteFrame(index) {
@@ -204,20 +203,36 @@ class Frames extends React.Component{
         })
     }
     shutTogetherTabs() {
-        const closeTabs = this.state.otherTabs.map((tab)=>tab.id)
-        const frames = this.state.otherTabs.map((tab)=>{
-                return  {   url:tab.url,
-                            favicon:tab.favIconUrl
-                        }
+        let targetTabid = null;
+        if(!this.state.mainPage.url){
+            console.log('发送target')
+            targetTabid = this.state.otherTabs[0] && this.state.otherTabs[0].id
+        }
+
+        const otherTabs = []
+        this.state.otherTabs.forEach((tab)=>{
+            if(tab.id!==targetTabid){
+                otherTabs.push(tab)
             }
-        )
+        })
+        const closeTabs = otherTabs.map((tab)=>tab.id)
+        const frames = otherTabs.map((tab)=>{return {
+            url:tab.url,
+            favicon:tab.favIconUrl
+        }})
+
         chrome.tabs.remove(closeTabs,()=>{
-            sendMessage({type:'addFrames',frames: frames}, (resp)=> {
+            sendMessage({type:'addFrames',frames: frames,targetTabid:targetTabid}, (resp)=> {
                 if(resp.success){
                     this.setState({
                         errMsg:'添加成功'
                     })
-                    this.initPage()
+                    this.initPage();
+                    if(targetTabid){
+                        chrome.tabs.getSelected(null, function(tab) {
+                            chrome.tabs.remove(tab.id)
+                        });
+                    }
                 }else{
                     this.setState({
                         errMsg: resp.errMsg || '添加失败'
