@@ -34,12 +34,13 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
     const valid = tab.url.indexOf('http') > -1;
     if(!valid){
         chrome.browserAction.setIcon({
-            path:'images/icon-16-disable.png',
+            path:'images/icon-32-disable.png',
             tabId:tab.id
         })
-    }else{
+    }
+    else{
         chrome.browserAction.setIcon({
-            path:'images/icon-16.png',
+            path:'images/icon-32.png',
             tabId:tab.id
         })
     }
