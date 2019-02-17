@@ -1,12 +1,13 @@
 function sendMessage(req,cb) {
     chrome.tabs.getSelected(null, function(tab) {
-        if(!req.targetTabid && tab.url.indexOf('http')===-1){
-            cb({success:false,errMsg:'拒绝通信'});
-            return false;
+        const tabid = req.targetTabId || tab.id;
+        const defualtResp = {success:false,errMsg:'通信失败'}
+        if(!req.targetTabId && tab.url.indexOf('http')===-1){
+            typeof cb === 'function' && cb(defualtResp)
+            return;
         }
-        const tabid = req.targetTabid || tab.id;
         chrome.tabs.sendMessage(tabid, req, function(response) {
-            response = response || {success:false,errMsg:'通信失败，请重试'}
+            response = response || defualtResp
             typeof cb === 'function' && cb(response)
         });
     });
@@ -19,9 +20,11 @@ class Frames extends React.Component{
         super(props)
         this.state = {
             frames:[],
-            mainPage:{alpha:1,activeIndex: null,favicon:'',title:'',url:''},
+            mainPage:null,
             errorMsg:'',
-            otherTabs:[]
+            otherTabs:[],
+            targetTabId: null,
+            currentTabId: null,
         }
         this.setActive = this.setActive.bind(this)
         this.changeAlpha = this.changeAlpha.bind(this)
@@ -37,28 +40,49 @@ class Frames extends React.Component{
         return (
             <div>
                 <div className='tabs-handler'>
-                    <button disabled={this.state.otherTabs.length===0} onClick={this.shutTogetherTabs}>
-                        聚合{this.state.otherTabs.length?this.state.otherTabs.length+'个':''}标签页
-                    </button>
-                    {
-                        this.state.otherTabs.length === 0 &&
-                        <span className='tip-info'>
-                            未发现可聚合的标签页
-                        </span>
-                    }
-                    <span>
-                    {
-                        this.state.otherTabs.map((tab,index)=>
-                            <span onClick={()=>this.addTabToFrames(tab)} className='site-icon' key={index} title={'点击添加：'+tab.title}>
-                                <img width={14} height={14} src={tab.favIconUrl}/>
-                            </span>
-                        )
-                    }
-                    </span>
+                    <div className='tabs-container'>
+                        <div className='active-tab'>
+                            {
+                                this.state.mainPage ?
+                                    <span>
+                                        {
+                                            this.state.otherTabs.length ?
+                                                <button onClick={this.shutTogetherTabs}>
+                                                    聚合所有
+                                                </button>:
+                                                <span>
+                                                    输入网址
+                                                </span>
+                                        }
+                                    </span>
+                                    :
+                                    <button onClick={this.shutTogetherTabs}>
+                                        聚合所有tab
+                                    </button>
+                            }
+                        </div>
+                        <div>
+                        {
+                            this.state.otherTabs.map((tab,index)=>
+                                <a href="javascript:;" onClick={()=>this.addTabToFrames(tab)}
+                                      className='site-favicon'
+                                      key={index}
+                                      title={'点击添加：'+tab.title}>
+                                    <img className='icon-image' width={14} height={14} src={tab.favIconUrl}/>
+                                </a>
+                            )
+                        }
+                        {
+                            this.state.otherTabs.length===0 &&
+                                <AddSection></AddSection>
+                        }
+                        </div>
+
+                    </div>
                 </div>
 
                 {
-                    this.state.mainPage.url &&
+                    this.state.mainPage &&
                     <section>
                         <table>
                             <thead>
@@ -88,7 +112,7 @@ class Frames extends React.Component{
                                             </label>
                                         </td>
                                         <td>
-                                            <a href={frame.src} target="_blank">打开</a>
+                                            <a href={frame.src} target="_blank">弹出</a>
                                             <button  onClick={()=>this.deleteFrame(index)}>删除</button>
                                         </td>
                                     </tr>
@@ -136,6 +160,11 @@ class Frames extends React.Component{
 
     componentDidMount(){
         this.initPage();
+        chrome.tabs.getSelected(null, (tab)=> {
+            this.setState({
+                currentTabId: tab.id,
+            })
+        })
     }
 
     initPage() {
@@ -147,7 +176,7 @@ class Frames extends React.Component{
                 }
             })
             this.setState({
-                otherTabs:tabs
+                otherTabs: tabs,
             })
         })
 
@@ -155,8 +184,12 @@ class Frames extends React.Component{
             if(result.success){
                 this.setState({
                     frames: result.frames,
-                    mainPage: result.mainPage
+                    mainPage: result.mainPage,
+                    targetTabId: this.state.currentTabId,
+                    hasMainPage: true
                 })
+            }else{
+                console.log('无主页信息')
             }
         })
     }
@@ -203,43 +236,39 @@ class Frames extends React.Component{
         })
     }
     shutTogetherTabs() {
-        let targetTabid = null;
-        if(!this.state.mainPage.url){
-            console.log('发送target')
-            targetTabid = this.state.otherTabs[0] && this.state.otherTabs[0].id
-        }
-
-        const otherTabs = []
+        let targetTabid = this.state.targetTabId;
+        targetTabid = targetTabid || this.state.otherTabs[0].id;
+        const huntingTabs = []
         this.state.otherTabs.forEach((tab)=>{
             if(tab.id!==targetTabid){
-                otherTabs.push(tab)
+                huntingTabs.push(tab)
             }
         })
-        const closeTabs = otherTabs.map((tab)=>tab.id)
-        const frames = otherTabs.map((tab)=>{return {
+        const closeTabIds = huntingTabs.map((tab)=>tab.id)
+        const frames = huntingTabs.map((tab)=>{return {
             url:tab.url,
             favicon:tab.favIconUrl
         }})
 
-        chrome.tabs.remove(closeTabs,()=>{
-            sendMessage({type:'addFrames',frames: frames,targetTabid:targetTabid}, (resp)=> {
-                if(resp.success){
-                    this.setState({
-                        errMsg:'添加成功'
-                    })
-                    this.initPage();
-                    if(targetTabid){
-                        chrome.tabs.getSelected(null, function(tab) {
-                            chrome.tabs.remove(tab.id)
-                        });
-                    }
-                }else{
-                    this.setState({
-                        errMsg: resp.errMsg || '添加失败'
-                    })
+        sendMessage({type:'addFrames',frames: frames,targetTabId: targetTabid}, (resp)=> {
+            if(resp.success){
+                this.setState({
+                    errMsg:'添加成功'
+                })
+                if(!this.state.mainPage){
+                    chrome.tabs.getSelected(null, function(tab) {
+                        chrome.tabs.remove(tab.id)
+                    });
                 }
-            })
-        });
+                chrome.tabs.remove(closeTabIds, ()=> {
+                    this.initPage();
+                });
+            }else{
+                this.setState({
+                    errMsg: resp.errMsg || '添加失败'
+                })
+            }
+        })
     }
     popupFrames() {
         this.closeOthers();
@@ -292,7 +321,9 @@ class AddSection extends React.Component{
     }
 
     addFrames(){
-        sendMessage({type:'addFrames',urls:[this.state.value]}, (resp)=> {
+        sendMessage({type:'addFrames',frames:[{
+                url:this.state.value,
+            }]}, (resp)=> {
             if(resp.success){
                 this.setState({
                     errMsg:'添加成功'
