@@ -10,7 +10,9 @@ const keys={
         default: function () {
             return {
                 alpha:1,
-                activeIndex:-1
+                activeIndex:-1,
+                showButton: true,
+                showType:'overlap',
             }
         }
     }
@@ -22,6 +24,7 @@ const PAGEACTIONS = {
     ACTIVE_FRAME:'activeFrame',
     SAVE_FAVICON:'saveFrameFavicon',
     INHERIT_INFO:'inheritFrameInfo',
+    REFRESH:'refreshPage'
 }
 
 
@@ -137,6 +140,15 @@ const dom = {
                     button.classList.add('active-frame-button')
                 }
                 container.appendChild(button)
+                const refreshButton = document.createElement('button');
+                refreshButton.innerText = '刷新'
+                refreshButton.onclick = function(){
+                    dom.getFrames()[index].contentWindow.postMessage({
+                        type: PAGEACTIONS.REFRESH,
+                        securityKey: PAGEACTIONS.SECURITY_KEY
+                    },"*");
+                }
+                container.appendChild(refreshButton);
                 asideContainer.appendChild(container)
             })
             const button = document.createElement('button')
@@ -291,7 +303,7 @@ if(isOriginWindow){
                 case 'getInfos':
                     sendResponse({
                         frames:getStorage(),
-                        mainPage:getStorage('one-tab-covers-main',{}),
+                        mainPage:getStorage(keys.mainPage.key,{}),
                         success:true
                     })
                     break;
@@ -313,9 +325,9 @@ if(isOriginWindow){
                     sendResponse({success:true})
                     break;
                 case 'toggleShowButton':
-                    const storage = getStorage('one-tab-covers-main',{});
+                    const storage = getStorage(keys.mainPage.key,{});
                     storage.showButton = !storage.showButton;
-                    setStorage(storage,'one-tab-covers-main')
+                    setStorage(storage,keys.mainPage.key)
                     setActive()
                     sendResponse({success:true})
                     break;
@@ -324,8 +336,29 @@ if(isOriginWindow){
                     initFrames();
                     sendResponse({success:true});
                     break;
+                case 'changeType':
+                    const mainInfo = getStorage(keys.mainPage.key);
+                    mainInfo.showType = request.showType
+                    setStorage(mainInfo,keys.mainPage.key);
+                    const iframes = dom.getFrames();
+                    switch (request.showType) {
+                        case 'flat':
+                            [].forEach.call(iframes,(iframe)=>{
+                                iframe.style.position='relative'
+                            })
+                            break;
+                        case 'overlap':
+                            [].forEach.call(iframes,(iframe)=>{
+                                iframe.style.position='absolute'
+                            })
+                            break;
+                        default:
+                            console.warn('未知类型的布局方式')
+                    }
+                    sendResponse({success:true})
+                    break;
                 default:
-                    // sendResponse({success:false,errMsg:'未知类型的命令'})
+                    sendResponse({success:false,errMsg:'未知类型的命令'})
             }
         }
     );
@@ -341,6 +374,8 @@ if(isOriginWindow){
             const iframe = document.createElement('iframe');
             iframe.src = src;
             iframe.className = 'iframe-cover';
+            const isAbsolute = getStorage(keys.mainPage.showType)==="flat" ? "relative" : "absolute"
+            iframe.style.position = isAbsolute
             document.documentElement.insertBefore(iframe,document.body);
         }
         const mainInfo = getStorage()
@@ -400,6 +435,9 @@ if(isOriginWindow){
                 break;
             case PAGEACTIONS.INHERIT_INFO:
                 setStorage(e.data.frameInfo,keys.mainPage.key)
+                break;
+            case PAGEACTIONS.REFRESH:
+                window.location.reload()
                 break;
             default:
                 console.warn('监听到未知类型请求：'+e.data.type)

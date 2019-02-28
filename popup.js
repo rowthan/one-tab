@@ -3,7 +3,8 @@ function sendMessage(req,cb) {
         const tabid = req.targetTabId || tab.id;
         const defualtResp = {success:false,errMsg:'通信失败'}
         if(!req.targetTabId && tab.url.indexOf('http')===-1){
-            typeof cb === 'function' && cb(defualtResp)
+            console.log('找不到通信目标');
+            typeof cb === 'function' && cb(defualtResp);
             return;
         }
         chrome.tabs.sendMessage(tabid, req, function(response) {
@@ -34,6 +35,7 @@ class Frames extends React.Component{
         this.shutTogetherTabs = this.shutTogetherTabs.bind(this)
         this.popupFrames = this.popupFrames.bind(this)
         this.addTabToFrames = this.addTabToFrames.bind(this)
+        this.changeShowType = this.changeShowType.bind(this)
     }
 
     render(){
@@ -147,7 +149,20 @@ class Frames extends React.Component{
                             </tbody>
                         </table>
                         <div>
-                            <input type="checkbox" onChange={this.toggleShowButton} value={this.state.mainPage.showButton} checked={this.state.mainPage.showButton}/> 显示按钮
+                            <div>
+                                <input type="checkbox" onChange={this.toggleShowButton} value={this.state.mainPage.showButton} checked={this.state.mainPage.showButton}/> 显示按钮
+                            </div>
+                            <div>
+                                布局方式：
+                                <label htmlFor="">
+                                    <input type="radio" onChange={this.changeShowType} name='showType' value="flat" checked={this.state.mainPage.showType==='flat'}/>
+                                    平铺
+                                </label>
+                                <label htmlFor="">
+                                    <input type="radio" onChange={this.changeShowType} name='showType' value="overlap" checked={this.state.mainPage.showType==='overlap'}/>
+                                    重叠
+                                </label>
+                            </div>
                         </div>
                     </section>
                 }
@@ -181,12 +196,13 @@ class Frames extends React.Component{
         })
 
         sendMessage({type:'getInfos'}, (result)=> {
+            console.log(result)
             if(result.success){
                 this.setState({
                     frames: result.frames,
                     mainPage: result.mainPage,
                     targetTabId: this.state.currentTabId,
-                    hasMainPage: true
+                    hasMainPage: true,
                 })
             }else{
                 console.log('无主页信息')
@@ -294,6 +310,11 @@ class Frames extends React.Component{
                     errMsg: resp.errMsg || '添加失败'
                 })
             }
+        })
+    }
+    changeShowType(e){
+        sendMessage({type:'changeType',showType:e.target.value,},(resp)=>{
+            this.initPage()
         })
     }
 }
