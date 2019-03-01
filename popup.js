@@ -24,6 +24,7 @@ class Frames extends React.Component{
             mainPage:null,
             errorMsg:'',
             otherTabs:[],
+            allTabs:[],
             targetTabId: null,
             currentTabId: null,
         }
@@ -43,40 +44,37 @@ class Frames extends React.Component{
             <div>
                 <div className='tabs-handler'>
                     <div className='tabs-container'>
-                        <div className='active-tab'>
-                            {
-                                this.state.mainPage ?
-                                    <span>
-                                        {
-                                            this.state.otherTabs.length ?
-                                                <button onClick={this.shutTogetherTabs}>
-                                                    聚合所有
-                                                </button>:
-                                                <span>
-                                                    输入网址
-                                                </span>
-                                        }
-                                    </span>
-                                    :
-                                    <button onClick={this.shutTogetherTabs}>
-                                        聚合所有tab
-                                    </button>
-                            }
-                        </div>
                         <div>
                         {
-                            this.state.otherTabs.map((tab,index)=>
-                                <a href="javascript:;" onClick={()=>this.addTabToFrames(tab)}
-                                      className='site-favicon'
-                                      key={index}
-                                      title={'点击添加：'+tab.title}>
-                                    <img className='icon-image' width={14} height={14} src={tab.favIconUrl}/>
-                                </a>
-                            )
-                        }
-                        {
-                            this.state.otherTabs.length===0 &&
-                                <AddSection></AddSection>
+                            this.state.allTabs.map((tab,index)=>{
+                                if(tab.id !== this.state.currentTabId){
+                                    return  <a href="javascript:;" onClick={()=>this.addTabToFrames(tab)}
+                                               className='site-favicon'
+                                               key={index}
+                                               title={'点击添加：'+tab.title}>
+                                        <img className='icon-image' width={14} height={14} src={tab.favIconUrl}/>
+                                    </a>
+                                }else {
+                                    return <span className='active-tab' key={index}>
+                                                {
+                                                    this.state.mainPage ?
+                                                        <span>
+                                                            {
+                                                                this.state.otherTabs.length ?
+                                                                    <button onClick={this.shutTogetherTabs}>
+                                                                        聚合所有
+                                                                    </button>:
+                                                                    <AddSection/>
+                                                            }
+                                                        </span>
+                                                        :
+                                                        <button onClick={this.shutTogetherTabs}>
+                                                            聚合所有tab
+                                                        </button>
+                                                }
+                                            </span>
+                                }
+                            })
                         }
                         </div>
 
@@ -185,13 +183,16 @@ class Frames extends React.Component{
     initPage() {
         chrome.tabs.getAllInWindow(null,(result)=>{
             const tabs = []
+            const allTabs = []
             result.forEach((tab)=>{
                 if(tab.active===false && tab.url.indexOf('http')>-1 && tab.title.indexOf('聚合页：')===-1){
                     tabs.push(tab)
                 }
+                allTabs.push(tab)
             })
             this.setState({
                 otherTabs: tabs,
+                allTabs: allTabs,
             })
         })
 
@@ -332,6 +333,7 @@ class AddSection extends React.Component{
 
     render(){
         return (<div>
+            输入网址:
             <input className="link-input"  value={this.state.value} onChange={(event)=>{this.setState({value:event.target.value})}}  type="text" placeholder="请输入url"/>
             <button id="add-frame" onClick={this.addFrames}>添加</button>
             <div style={{color:'red'}}>
