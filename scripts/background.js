@@ -2,9 +2,8 @@ var callback = function(details) {
     var headers = details.responseHeaders;
     for (var i = 0; i < headers.length; ++i) {
         // 移除X-Frame-Options字段
-        if (headers[i].name.toLowerCase() === 'x-frame-options') {
+        if (['x-frame-options','content-security-policy'].indexOf(headers[i].name.toLowerCase())>-1) {
             headers.splice(i, 1);
-            break;
         }
     }
     // 返回修改后的headers列表
