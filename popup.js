@@ -153,12 +153,12 @@ class Frames extends React.Component{
                             <div>
                                 布局方式：
                                 <label htmlFor="">
-                                    <input type="radio" onChange={this.changeShowType} name='showType' value="flat" checked={this.state.mainPage.showType==='flat'}/>
-                                    平铺
-                                </label>
-                                <label htmlFor="">
                                     <input type="radio" onChange={this.changeShowType} name='showType' value="overlap" checked={this.state.mainPage.showType==='overlap'}/>
                                     重叠
+                                </label>
+                                <label htmlFor="">
+                                    <input type="radio" onChange={this.changeShowType} name='showType' value="flat" checked={this.state.mainPage.showType==='flat'}/>
+                                    平铺
                                 </label>
                             </div>
                         </div>

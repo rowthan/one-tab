@@ -374,7 +374,7 @@ if(isOriginWindow){
             const iframe = document.createElement('iframe');
             iframe.src = src;
             iframe.className = 'iframe-cover';
-            const isAbsolute = getStorage(keys.mainPage.showType)==="flat" ? "relative" : "absolute"
+            const isAbsolute = getStorage(keys.mainPage.key).showType==="flat" ? "relative" : "absolute"
             iframe.style.position = isAbsolute
             document.documentElement.insertBefore(iframe,document.body);
         }
