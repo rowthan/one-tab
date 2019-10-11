@@ -1,5 +1,5 @@
 const keys={
-    frames:{
+    framesInfo:{
         key:'one-tab-covers',
         default:function () {
             return []
@@ -48,7 +48,7 @@ const dom = {
             document.body.style.display='none'
             return
         }else{
-            document.body.style.display='inherit'
+            document.body.style.display= document.body.dataset.originDisplay;
         }
         let bkCount = 0;
 
@@ -57,10 +57,14 @@ const dom = {
             const opacity = element.dataset.opacity || dom.getStyle(element,'opacity') || 1
             const originbkImage = element.dataset.originBKImage || dom.getStyle(element,'background-image');
             const imageUrlReg = /url/;
-            // todo 避免 opacity 属性会被继承
+            // TODO 避免 opacity 叠加
+            const canChangeOpacity = originbkImage && element.childNodes.length < 2
             if(element.tagName==="IMG"){
                 element.dataset.opacity = opacity
-                element.style.opacity = rate
+                element.style.opacity = opacity * rate
+            }
+            if(originbkImage){
+                element.dataset.originBKImage = originbkImage;
             }
 
             const originBKColor = element.dataset.originBKColor || dom.getStyle(element,'background-color').toString();
@@ -81,20 +85,17 @@ const dom = {
                 }
             }
         })
-        console.log('复杂度'+bkCount)
-    },150),
+    },200),
     activePage: function (pageIndex=-1,framesInfo=[],showButton=false,mainAlpha=1) {
         const frames = dom.getFrames();
         pageIndex = pageIndex >= frames.length? -1: pageIndex
         document.body.style.zIndex = frames.length;
-        // TODO 使用原始值
-        // document.body.style.display = 'inherit'
+
         const position = dom.getStyle(document.body,'position');
 
-        if(!position || position==='static'){
-            document.body.dataset.originPosition = position;
-            document.body.style.position = 'relative'
-        }
+        // if(!position || position==='static'){
+        //     document.body.style.position = 'relative'
+        // }
 
         [].forEach.call(frames,function (frame,index) {
             frame.style.zIndex = index;
@@ -186,6 +187,7 @@ const dom = {
             });
         }
     },
+    // 动态获取
     getFrames:function () {
         return document.getElementsByClassName('iframe-cover')
     },
@@ -195,11 +197,11 @@ const dom = {
     }
 }
 
-const getStorage = function (key=keys.frames.key) {
+const getStorage = function (key=keys.framesInfo.key) {
     let storage = null;
     switch (key) {
-        case keys.frames.key:
-            storage = keys.frames.default()
+        case keys.framesInfo.key:
+            storage = keys.framesInfo.default()
             break;
         case keys.mainPage.key:
             storage = keys.mainPage.default()
@@ -216,7 +218,7 @@ const getStorage = function (key=keys.frames.key) {
     return storage;
 }
 
-const setStorage = function (value,key=keys.frames.key) {
+const setStorage = function (value,key=keys.framesInfo.key) {
     sessionStorage.setItem(key,JSON.stringify(value))
     switch (key) {
         case keys.mainPage.key:
@@ -227,9 +229,9 @@ const setStorage = function (value,key=keys.frames.key) {
 }
 
 const modifyFrameInfo = function(index,value){
-    const frames = getStorage(keys.frames.key)
+    const frames = getStorage(keys.framesInfo.key)
     frames.splice(index,1,value)
-    setStorage(frames,keys.frames.key)
+    setStorage(frames,keys.framesInfo.key)
     const target = dom.getFrames()[value.frameIndex].contentWindow
     target.postMessage({type:PAGEACTIONS.INHERIT_INFO,frameInfo:value,securityKey:PAGEACTIONS.SECURITY_KEY},"*");
 }
@@ -259,7 +261,7 @@ window.addEventListener('keyup',function (e) {
 const isOriginWindow = window.top === window;
 if(isOriginWindow){
     initFrames();
-    const frames = getStorage(keys.frames.key);
+    const frames = getStorage(keys.framesInfo.key);
     window.addEventListener('load', function(){
         frames.forEach((item,index)=>
             dom.getFrames()[index].contentWindow.postMessage({
@@ -297,6 +299,7 @@ if(isOriginWindow){
                     let originF = getStorage();
                     originF = originF.concat(tempFrames);
                     setStorage(originF)
+                    setActive(originF.length-1);
                     initFrames()
                     sendResponse({success:true})
                     break;
@@ -368,6 +371,16 @@ if(isOriginWindow){
         // TODO 新增时 不影响其他frame再次加载
         [].forEach.call(document.querySelectorAll('.iframe-cover'), (frame)=> frame.parentElement.removeChild(frame));
         const frames = getStorage();
+        // const maxLength = Math.max(currentFrames.length,frames.length);
+        // for(let frameIndex=0; frameIndex <= maxLength; frameIndex++){
+        //     const tempCurrent = currentFrames[frameIndex] || {};
+        //     if(tempCurrent.src !== frames.src){
+        //         tempCurrent.parentElement.removeChild(tempCurrent);
+        //         addFrameToHTML(frames)
+        //     }
+        // }
+        //
+        // [].forEach.call(currentFrames, (frame)=> frame.parentElement.removeChild(frame));
         frames.forEach((cover)=> addFrameToHTML(cover.src));
         chrome.extension.sendRequest({type: "setBadge",number:frames.length})
         function addFrameToHTML(src){
@@ -383,7 +396,7 @@ if(isOriginWindow){
     }
 
     function setActive(activeIndex=getStorage(keys.mainPage.key).activeIndex){
-        const framesInfo = getStorage(keys.frames.key)
+        const framesInfo = getStorage(keys.framesInfo.key)
         const storage = getStorage(keys.mainPage.key)
         storage.activeIndex = activeIndex
         setStorage(storage,keys.mainPage.key)
@@ -459,6 +472,8 @@ if(isOriginWindow){
     })
 }
 window.addEventListener('load',function () {
+    document.body.dataset.originDisplay = dom.getStyle(document.body,'display');
+    document.body.dataset.originPosition = dom.getStyle(document.body,'position');
     const pageInfo = getStorage(keys.mainPage.key);
     dom.changeAlpha(pageInfo.alpha||1);
 })
