@@ -15,8 +15,10 @@
     },
     "permissions": [
       "contextMenus",
-      "activeTab",
+      "<all_urls>",
       "tabs",
+      "tabCapture",
+      "activeTab",
       "webRequest",
       "webRequestBlocking",
       "http://*/*",

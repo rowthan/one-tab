@@ -76,6 +76,9 @@ class Frames extends React.Component{
                                 }
                             })
                         }
+                          <button onClick={this.autoSort}>
+                            智能整理
+                          </button>
                         </div>
 
                     </div>
@@ -251,6 +254,9 @@ class Frames extends React.Component{
                 })
             }
         })
+    }
+    autoSort() {
+      chrome.extension.sendRequest({type: "autoSort"})
     }
     shutTogetherTabs() {
         let targetTabid = this.state.targetTabId;
