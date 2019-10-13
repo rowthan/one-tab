@@ -48,7 +48,6 @@ chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
             }
           }
 
-          console.log(tabObject);
 
           const windowTabs={
 
@@ -72,7 +71,6 @@ chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
               delete tabObject[i]
               continue;
             }
-            console.log('move',moveTabs,targetWindowId)
 
             if(targetWindowId===null){
               chrome.windows.create({tabId:tabObject[i][0].id}, function(win){
@@ -110,7 +108,6 @@ const reMapWindow = function() {
       }).sort(function(window){
         return window.id===currentId?1:-1
       })
-      console.log('wins',windows,currentId)
       windows.forEach((item,index)=>{
         const top = index*34+window.screen.availTop;
         const left = index*16;
@@ -128,7 +125,7 @@ const reMapWindow = function() {
 
 
 const setting = {
-    moveToSameWindow: true,
+    moveToSameWindow: false,
 };
 
 const newTabUrl = 'chrome://newtab/';
@@ -165,25 +162,24 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
           if(item.url===tab.url && tab.url!==newTabUrl && item.id!==tab.id){
             index = item.index;
             targetWindowId = item.windowId;
+            targetTabId = item.id;
             break;
           }
         }
 
-        if(setting.moveToSameWindow && targetWindowId && index!==undefined) {
-          // chrome.tabs.move(tabId, {windowId:targetWindowId,index:index});
-          // 聚焦到目标窗口,并定位到目标tab
-          chrome.windows.update(targetWindowId, {focused:true},function(){
-            // TODO 然后将目标窗口移动到此窗口位置上 不切换窗口，将已经存在的tab移动到当前tab上
-            chrome.tabs.highlight({windowId:targetWindowId, tabs:[index]},function () {
-              chrome.tabs.remove([tabId])
-              // else{
-              //   chrome.tabs.update(tabId,{url:newTabUrl},function () {
-              //
-              //   });
-              // }
-            });
-          })
+        if(!targetWindowId||index===undefined||!targetTabId) return;
+
+        if(setting.moveToSameWindow){
+          chrome.tabs.move(targetTabId, {windowId:tab.windowId,index:tab.index},function (result) {
+            chrome.tabs.remove([tab.id]);
+            chrome.tabs.highlight({windowId:tab.windowId,tabs:[tab.index]})
+          });
         }
+        chrome.windows.update(targetWindowId, {focused:true},function(){
+          chrome.tabs.highlight({windowId:targetWindowId, tabs:[index]},function () {
+            chrome.tabs.remove([tabId])
+          });
+        })
 
       // chrome.tabs.captureVisibleTab(result[0].windowId,{}, function(result){
       //     // console.log('image',result)
@@ -194,7 +190,12 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
 
 
 function getDomain(url){
-   const matchresult =  (url.match(/^https?:\/\/([^\/]*)/i)||[])[1];
+   const matchresult =  (url.match(/^https?:\/\/.*?\.?([^\/]*)/i)||[])[1]||'';
+   const hostArray = matchresult.split('.');
+   if(hostArray.length>2){
+     return hostArray.slice(hostArray.length-2).join('.');
+   }
+
    return matchresult;
 
 }
