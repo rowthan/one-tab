@@ -28,30 +28,103 @@ chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
             break;
       case 'autoSort':
         // 平铺模式 TODO 增加多种铺放模式
-        chrome.tabs.getSelected(null, function(tab) {
-          chrome.windows.getAll({populate:true}, function(result){
-            const currentId = tab.windowId;
-            const screenWidth = window.screen.width
-            const screenHeight = window.screen.height
-            const windows = result.sort(function(window){
-              return window.id===currentId?1:-1
-            })
-            windows.forEach((item,index)=>{
-              const top = index*34+window.screen.availTop;
-              const left = index*16;
-              const width =  screenWidth-left-(windows.length-index)*10;
-              const height = screenHeight-40;
-              try{
-                chrome.windows.update(item.id, {top,left,width,height,focused:true})
-              }catch (e) {
-                console.log(e,'update')
-              }
-            })
+        chrome.tabs.query({}, function (tabs) {
+          const tabObject = {
+            combine:[]
+          };
+          tabs.forEach((tab)=>{
+            const key = getDomain(tab.url) || 'none';
+            if(tabObject[key]){
+              tabObject[key].push(tab)
+            } else {
+              tabObject[key] = [tab]
+            }
           });
-        })
+
+          for(let i in tabObject) {
+            if(tabObject[i].length<2 && i!=='combine'){
+              tabObject.combine.push(...tabObject[i]);
+              delete tabObject[i];
+            }
+          }
+
+          console.log(tabObject);
+
+          const windowTabs={
+
+          }
+
+          for(let i in tabObject){
+            if(tabObject[i].length===0) continue;
+            let targetWindowId = tabObject[i][0].windowId;
+            // 如果窗口id已经被占用
+            if(windowTabs[targetWindowId]){
+              targetWindowId = null;
+            }else{
+              windowTabs[targetWindowId] = tabObject[i];
+            }
+
+            const tabIds = tabObject[i].map((tab)=>{
+              return tab.id;
+            });
+            const moveTabs = tabIds.slice(1);
+            if(moveTabs.length===0){
+              delete tabObject[i]
+              continue;
+            }
+            console.log('move',moveTabs,targetWindowId)
+
+            if(targetWindowId===null){
+              chrome.windows.create({tabId:tabObject[i][0].id}, function(win){
+                chrome.tabs.move(moveTabs,{windowId:win.id,index:-1},function (result) {
+                  delete tabObject[i]
+                  if(Object.keys(tabObject).length===0){
+                    reMapWindow()
+                  }
+                })
+              })
+            }else {
+              chrome.tabs.move(moveTabs,{windowId:targetWindowId,index:-1},function (result) {
+                delete tabObject[i]
+                if(Object.keys(tabObject).length===0){
+                  reMapWindow()
+                }
+              })
+            }
+          }
+        });
         break;
     }
-})
+});
+
+const reMapWindow = function() {
+  chrome.windows.getAll({populate:true}, function(result){
+    const screenWidth = window.screen.availWidth;
+    const screenHeight = window.screen.availHeight;
+    chrome.tabs.getSelected(null, function(tab) {
+      const currentId = tab.windowId;
+      const windows = result.filter((item)=>{
+        return item.tabs.length>0
+      }).sort(function(window,next){
+        return  next.tabs.length-window.tabs.length
+      }).sort(function(window){
+        return window.id===currentId?1:-1
+      })
+      console.log('wins',windows,currentId)
+      windows.forEach((item,index)=>{
+        const top = index*34+window.screen.availTop;
+        const left = index*16;
+        const width =  screenWidth-left-(windows.length-index)*14;
+        const height = screenHeight;
+        try{
+          chrome.windows.update(item.id, {top,left,width,height,focused:true})
+        }catch (e) {
+          console.log(e,'update')
+        }
+      })
+    })
+  });
+}
 
 
 const setting = {
@@ -100,7 +173,7 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
           // chrome.tabs.move(tabId, {windowId:targetWindowId,index:index});
           // 聚焦到目标窗口,并定位到目标tab
           chrome.windows.update(targetWindowId, {focused:true},function(){
-            // TODO 然后将目标窗口移动到此窗口位置上
+            // TODO 然后将目标窗口移动到此窗口位置上 不切换窗口，将已经存在的tab移动到当前tab上
             chrome.tabs.highlight({windowId:targetWindowId, tabs:[index]},function () {
               chrome.tabs.remove([tabId])
               // else{
@@ -121,6 +194,7 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
 
 
 function getDomain(url){
-   const matchresult =  url.match(/^https?:\/\/([^\/]*)/i) [url];
+   const matchresult =  (url.match(/^https?:\/\/([^\/]*)/i)||[])[1];
+   return matchresult;
 
 }
