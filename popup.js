@@ -77,7 +77,7 @@ class Frames extends React.Component{
                             })
                         }
                           <button onClick={this.autoSort}>
-                            智能整理
+                            智能整理窗口
                           </button>
                         </div>
 

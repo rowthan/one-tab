@@ -28,72 +28,76 @@ chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
             break;
       case 'autoSort':
         // 平铺模式 TODO 增加多种铺放模式
-        chrome.tabs.query({}, function (tabs) {
-          const tabObject = {
-            combine:[]
-          };
-          tabs.forEach((tab)=>{
-            const key = getDomain(tab.url) || 'none';
-            if(tabObject[key]){
-              tabObject[key].push(tab)
-            } else {
-              tabObject[key] = [tab]
-            }
-          });
-
-          for(let i in tabObject) {
-            if(tabObject[i].length<2 && i!=='combine'){
-              tabObject.combine.push(...tabObject[i]);
-              delete tabObject[i];
-            }
-          }
-
-
-          const windowTabs={
-
-          }
-
-          for(let i in tabObject){
-            if(tabObject[i].length===0) continue;
-            let targetWindowId = tabObject[i][0].windowId;
-            // 如果窗口id已经被占用
-            if(windowTabs[targetWindowId]){
-              targetWindowId = null;
-            }else{
-              windowTabs[targetWindowId] = tabObject[i];
-            }
-
-            const tabIds = tabObject[i].map((tab)=>{
-              return tab.id;
-            });
-            const moveTabs = tabIds.slice(1);
-            if(moveTabs.length===0){
-              delete tabObject[i]
-              continue;
-            }
-
-            if(targetWindowId===null){
-              chrome.windows.create({tabId:tabObject[i][0].id}, function(win){
-                chrome.tabs.move(moveTabs,{windowId:win.id,index:-1},function (result) {
-                  delete tabObject[i]
-                  if(Object.keys(tabObject).length===0){
-                    reMapWindow()
-                  }
-                })
-              })
-            }else {
-              chrome.tabs.move(moveTabs,{windowId:targetWindowId,index:-1},function (result) {
-                delete tabObject[i]
-                if(Object.keys(tabObject).length===0){
-                  reMapWindow()
-                }
-              })
-            }
-          }
-        });
+        autoSort();
         break;
     }
 });
+
+const autoSort = function() {
+  chrome.tabs.query({}, function (tabs) {
+    const tabObject = {
+      combine:[]
+    };
+    tabs.forEach((tab)=>{
+      const key = getDomain(tab.url) || 'none';
+      if(tabObject[key]){
+        tabObject[key].push(tab)
+      } else {
+        tabObject[key] = [tab]
+      }
+    });
+
+    for(let i in tabObject) {
+      if(tabObject[i].length<2 && i!=='combine'){
+        tabObject.combine.push(...tabObject[i]);
+        delete tabObject[i];
+      }
+    }
+
+
+    const windowTabs={
+
+    }
+
+    for(let i in tabObject){
+      if(tabObject[i].length===0) continue;
+      let targetWindowId = tabObject[i][0].windowId;
+      // 如果窗口id已经被占用
+      if(windowTabs[targetWindowId]){
+        targetWindowId = null;
+      }else{
+        windowTabs[targetWindowId] = tabObject[i];
+      }
+
+      const tabIds = tabObject[i].map((tab)=>{
+        return tab.id;
+      });
+      const moveTabs = tabIds.slice(1);
+      if(moveTabs.length===0){
+        delete tabObject[i]
+        continue;
+      }
+
+      if(targetWindowId===null){
+        chrome.windows.create({tabId:tabObject[i][0].id}, function(win){
+          chrome.tabs.move(moveTabs,{windowId:win.id,index:-1},function (result) {
+            delete tabObject[i]
+            if(Object.keys(tabObject).length===0){
+              reMapWindow()
+            }
+          })
+        })
+      }else {
+        chrome.tabs.move(moveTabs,{windowId:targetWindowId,index:-1},function (result) {
+          delete tabObject[i]
+          if(Object.keys(tabObject).length===0){
+            reMapWindow()
+          }
+        })
+      }
+    }
+  });
+}
 
 const reMapWindow = function() {
   chrome.windows.getAll({populate:true}, function(result){
@@ -125,20 +129,16 @@ const reMapWindow = function() {
 
 
 const setting = {
-    moveToSameWindow: false,
+    moveToCurrentWindow: true,
 };
 
 const newTabUrl = 'chrome://newtab/';
 
-const tabRef = {}
 
 chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
     if(changeInfo.status!=='loading') {
       return
     };
-    if(tab.openerTabId){
-        tabRef[tabId] = tab.openerTabId;
-    }
     const valid = tab.url.indexOf('http') > -1;
     if(!valid){
         chrome.browserAction.setIcon({
@@ -154,6 +154,12 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
     }
 
     chrome.tabs.query({}, function (result){
+        const checkMult = +localStorage.getItem('preventMult')===1;
+        console.log(checkMult)
+        if(!checkMult){
+          return;
+        }
+        console.log('check')
         let index = undefined;
         let targetWindowId = undefined;
         let targetTabId = undefined;
@@ -169,17 +175,18 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
 
         if(!targetWindowId||index===undefined||!targetTabId) return;
 
-        if(setting.moveToSameWindow){
+        if(setting.moveToCurrentWindow){
           chrome.tabs.move(targetTabId, {windowId:tab.windowId,index:tab.index},function (result) {
             chrome.tabs.remove([tab.id]);
             chrome.tabs.highlight({windowId:tab.windowId,tabs:[tab.index]})
           });
+        } else{
+          chrome.windows.update(targetWindowId, {focused:true},function(){
+            chrome.tabs.highlight({windowId:targetWindowId, tabs:[index]},function () {
+              chrome.tabs.remove([tabId])
+            });
+          })
         }
-        chrome.windows.update(targetWindowId, {focused:true},function(){
-          chrome.tabs.highlight({windowId:targetWindowId, tabs:[index]},function () {
-            chrome.tabs.remove([tabId])
-          });
-        })
 
       // chrome.tabs.captureVisibleTab(result[0].windowId,{}, function(result){
       //     // console.log('image',result)
@@ -199,3 +206,28 @@ function getDomain(url){
    return matchresult;
 
 }
+
+chrome.browserAction.onClicked.addListener(function(tab) {
+  autoSort()
+});
+
+/**菜单*/
+chrome.contextMenus.create({"title": '智能整理窗口', "contexts":["all", "page", "frame", "selection", "link", "editable", "image", "video", "audio"] ,
+  "onclick": autoSort});
+
+const defaultPrevent = localStorage.getItem('preventMult')===1;
+var doPrevent = chrome.contextMenus.create(
+  {"title": "开启防重复页面模式", "type": "radio",checked:defaultPrevent, "onclick":checkboxOnClick});
+var checkbox2 = chrome.contextMenus.create(
+  {"title": "关闭防重复页面模式", "type": "radio",checked:!defaultPrevent, "onclick":checkboxOnClick});
+
+function checkboxOnClick(info,tab) {
+  localStorage.setItem('preventMult',info.menuItemId===doPrevent?1:0);
+}
+/**菜单end**/
+
+chrome.commands.onCommand.addListener(function(command) {
+  if(command === 'clear-up-window'){
+    autoSort()
+  }
+});

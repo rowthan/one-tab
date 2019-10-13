@@ -22,7 +22,8 @@
       "webRequest",
       "webRequestBlocking",
       "http://*/*",
-      "https://*/*"
+      "https://*/*",
+      "contextMenus"
     ],
   "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
     "browser_action": {
@@ -38,11 +39,12 @@
       "default_popup": "popup.html"
     },
     "commands": {
-      "whats_element": {
-        "description": "compute element",
+      "clear-up-window": {
         "suggested_key": {
-          "default": "Ctrl+Shift+E"
-        }
+          "default": "Ctrl+Shift+X",
+          "mac": "Command+Shift+X"
+        },
+        "description": "智能整理窗口"
       }
     },
     "background": {
