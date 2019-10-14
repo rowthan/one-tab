@@ -101,8 +101,6 @@ const autoSort = function() {
 
 const reMapWindow = function() {
   chrome.windows.getAll({populate:true}, function(result){
-    const screenWidth = window.screen.availWidth;
-    const screenHeight = window.screen.availHeight;
     chrome.tabs.getSelected(null, function(tab) {
       const currentId = tab.windowId;
       const windows = result.filter((item)=>{
@@ -111,17 +109,37 @@ const reMapWindow = function() {
         return  next.tabs.length-window.tabs.length
       }).sort(function(window){
         return window.id===currentId?1:-1
-      })
-      windows.forEach((item,index)=>{
-        const top = index*34+window.screen.availTop;
-        const left = index*16;
-        const width =  screenWidth-left-(windows.length-index)*14;
-        const height = screenHeight;
-        try{
+      });
+
+      let firstWindow = {
+        width: window.screen.availWidth,
+        height: window.screen.availHeight,
+        left: window.screen.availLeft,
+        top: window.screen.availTop,
+      };
+
+      // (function updateWindow(windows,{top,left,width,height},index){
+      //
+      //   chrome.windows.update(item.id, {top,left,width,height,focused:true},function () {
+      //     updateWindow()
+      //   })
+      // })(windows,{top:0, left:0, screenWidth,screenHeight},0);
+      if(windows.length===0) return;
+      chrome.windows.update(windows[windows.length-1].id,
+        {
+          top:firstWindow.top,
+          left:firstWindow.left,
+          width:firstWindow.width-(windows.length-1)*setting.distanceLeft,
+          height:firstWindow.height},function (result) {
+        firstWindow = result;
+        windows.slice(0).forEach((item,index)=>{
+          const top = index*setting.distanceTop+firstWindow.top;
+          const left = index*setting.distanceLeft+firstWindow.left;
+          const width =  firstWindow.width;
+          const height = firstWindow.height-index*setting.distanceTop;
+          console.log(top,left,width,height);
           chrome.windows.update(item.id, {top,left,width,height,focused:true})
-        }catch (e) {
-          console.log(e,'update')
-        }
+        })
       })
     })
   });
@@ -130,6 +148,9 @@ const reMapWindow = function() {
 
 const setting = {
     moveToCurrentWindow: true,
+    distanceTop: 34,
+    distanceLeft: window.screen.availWidth>1200?24:16,
+    matchExact: false,
 };
 
 const newTabUrl = 'chrome://newtab/';
@@ -199,12 +220,12 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
 function getDomain(url){
    const matchresult =  (url.match(/^https?:\/\/.*?\.?([^\/]*)/i)||[])[1]||'';
    const hostArray = matchresult.split('.');
-   if(hostArray.length>2){
+   // 模糊匹配，只取顶级域名
+   if(hostArray.length>2 && !setting.matchExact){
      return hostArray.slice(hostArray.length-2).join('.');
    }
 
    return matchresult;
-
 }
 
 chrome.browserAction.onClicked.addListener(function(tab) {
@@ -212,10 +233,10 @@ chrome.browserAction.onClicked.addListener(function(tab) {
 });
 
 /**菜单*/
-chrome.contextMenus.create({"title": '智能整理窗口', "contexts":["all", "page", "frame", "selection", "link", "editable", "image", "video", "audio"] ,
+chrome.contextMenus.create({"title": '智能整理窗口', "contexts":["all", "page", "frame"] ,
   "onclick": autoSort});
 
-const defaultPrevent = localStorage.getItem('preventMult')===1;
+const defaultPrevent = localStorage.getItem('preventMult')!==0;
 var doPrevent = chrome.contextMenus.create(
   {"title": "开启防重复页面模式", "type": "radio",checked:defaultPrevent, "onclick":checkboxOnClick});
 var checkbox2 = chrome.contextMenus.create(
