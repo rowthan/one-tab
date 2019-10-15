@@ -32,7 +32,7 @@ chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
         break;
     }
 });
-
+//todo active tab 处理后任然需要激活
 const autoSort = function() {
   chrome.tabs.query({}, function (tabs) {
     const tabObject = {
@@ -55,13 +55,22 @@ const autoSort = function() {
     }
 
 
-    const windowTabs={
-
-    }
-
+    const windowTabs={}
     for(let i in tabObject){
       if(tabObject[i].length===0) continue;
+      const windowObject ={};
+      tabObject[i].forEach((tabItem)=>{
+        const count = windowObject[tabItem.windowId] || 0;
+        windowObject[tabItem.windowId] = count+1;
+      });
       let targetWindowId = tabObject[i][0].windowId;
+      let maxUseNum = 0;
+      for (let w in windowObject){
+        if(windowObject[w]>=maxUseNum){
+          maxUseNum = windowObject[w];
+          targetWindowId = +w;
+        }
+      }
       // 如果窗口id已经被占用
       if(windowTabs[targetWindowId]){
         targetWindowId = null;
@@ -69,39 +78,32 @@ const autoSort = function() {
         windowTabs[targetWindowId] = tabObject[i];
       }
 
-      const tabIds = tabObject[i].map((tab)=>{
+      const moveTabs = tabObject[i].filter(function(tab){
+        return tab.windowId!==targetWindowId;
+      }).map((tab)=>{
         return tab.id;
       });
-      const moveTabs = tabIds.slice(1);
       if(moveTabs.length===0){
-        delete tabObject[i]
         continue;
       }
 
+      //复用没有tab页面的窗口
       if(targetWindowId===null){
         chrome.windows.create({tabId:tabObject[i][0].id}, function(win){
-          chrome.tabs.move(moveTabs,{windowId:win.id,index:-1},function (result) {
-            delete tabObject[i]
-            if(Object.keys(tabObject).length===0){
-              reMapWindow()
-            }
-          })
+          chrome.tabs.move(moveTabs,{windowId:win.id,index:-1})
         })
       }else {
-        chrome.tabs.move(moveTabs,{windowId:targetWindowId,index:-1},function (result) {
-          delete tabObject[i]
-          if(Object.keys(tabObject).length===0){
-            reMapWindow()
-          }
-        })
+        chrome.tabs.move(moveTabs,{windowId:targetWindowId,index:-1})
       }
     }
+    reMapWindow();
   });
 }
 
-const reMapWindow = function() {
+const reMapWindow = debounce(function() {
   chrome.windows.getAll({populate:true}, function(result){
-    chrome.tabs.getSelected(null, function(tab) {
+    chrome.tabs.query({active:true,currentWindow:true}, function(tabs) {
+      const tab = tabs[0];
       const currentId = tab.windowId;
       const windows = result.filter((item)=>{
         return item.tabs.length>0
@@ -112,7 +114,7 @@ const reMapWindow = function() {
       });
 
       let firstWindow = {
-        width: window.screen.availWidth,
+        width: window.screen.availWidth-(windows.length-1)*setting.distanceLeft,
         height: window.screen.availHeight,
         left: window.screen.availLeft,
         top: window.screen.availTop,
@@ -125,25 +127,37 @@ const reMapWindow = function() {
       //   })
       // })(windows,{top:0, left:0, screenWidth,screenHeight},0);
       if(windows.length===0) return;
-      chrome.windows.update(windows[windows.length-1].id,
-        {
-          top:firstWindow.top,
-          left:firstWindow.left,
-          width:firstWindow.width-(windows.length-1)*setting.distanceLeft,
-          height:firstWindow.height},function (result) {
-        firstWindow = result;
-        windows.slice(0).forEach((item,index)=>{
+      // chrome.windows.update(windows[windows.length-1].id,
+      //   {
+      //     top:firstWindow.top,
+      //     left:firstWindow.left,
+      //     width:firstWindow.width-(windows.length-1)*setting.distanceLeft,
+      //     height:firstWindow.height,focused:false,drawAttention:false},function (result) {
+      //   firstWindow = result;
+      //     mapWindow();
+      // });
+
+      mapWindow();
+      function mapWindow() {
+        canMap = false;
+        let count = windows.length;
+        windows.forEach((item,index)=>{
           const top = index*setting.distanceTop+firstWindow.top;
-          const left = index*setting.distanceLeft+firstWindow.left;
+          const left = firstWindow.left //+index*setting.distanceLeft;
           const width =  firstWindow.width;
           const height = firstWindow.height-index*setting.distanceTop;
-          console.log(top,left,width,height);
-          chrome.windows.update(item.id, {top,left,width,height,focused:true})
+          // console.log(item.id,[top,left,width,height],index);
+          chrome.windows.update(item.id, {top,left,width,height,focused:true,drawAttention:true},function () {
+            count--;
+            if(count===0){
+              canMap = true;
+            }
+          })
         })
-      })
+      }
     })
   });
-}
+},200)
 
 
 const setting = {
@@ -176,11 +190,9 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
 
     chrome.tabs.query({}, function (result){
         const checkMult = +localStorage.getItem('preventMult')===1;
-        console.log(checkMult)
         if(!checkMult){
           return;
         }
-        console.log('check')
         let index = undefined;
         let targetWindowId = undefined;
         let targetTabId = undefined;
@@ -231,6 +243,38 @@ function getDomain(url){
 chrome.browserAction.onClicked.addListener(function(tab) {
   autoSort()
 });
+let canMap = true;
+chrome.windows.onFocusChanged.addListener(function(window){
+  if(window===-1) return;
+  if(canMap){
+    reMapWindow();
+  }
+});
+function debounce(func, wait) {
+  let timeout;
+  return function () {
+    let context = this;
+    let args = arguments;
+
+    if (timeout) clearTimeout(timeout);
+
+    timeout = setTimeout(() => {
+      func.apply(context, args)
+    }, wait);
+  }
+}
+chrome.tabs.onActivated.addListener(function (tab) {
+  // console.log('tab change',tab)
+  // reMapWindow()
+})
+chrome.tabs.onDetached.addListener(function(){
+  // console.log('detached')
+  // canMap = false;
+})
+chrome.tabs.onAttached.addListener(function () {
+  // console.log('onattached')
+  // canMap = true
+})
 
 /**菜单*/
 chrome.contextMenus.create({"title": '智能整理窗口', "contexts":["all", "page", "frame"] ,
