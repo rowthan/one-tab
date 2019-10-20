@@ -39,7 +39,8 @@ const autoSort = function() {
       combine:[]
     };
     tabs.forEach((tab)=>{
-      const key = getDomain(tab.url) || 'none';
+      let key = getDomain(tab.url) || 'combine';
+      key = key.replace('127.0.0.1','localhost');
       if(tabObject[key]){
         tabObject[key].push(tab)
       } else {
@@ -47,14 +48,34 @@ const autoSort = function() {
       }
     });
 
+    const keys = Object.keys(tabObject).sort((key1,key2)=>{
+      return tabObject[key2].length-tabObject[key1].length
+    })
+    const maxWindow = setting.maxWindow;
+    if(keys.length>maxWindow){
+      let parentIndex = 0;
+      for(let i=keys.length-1; i>= maxWindow; i--){
+        let moved = false;
+        while(parentIndex<maxWindow && !moved){
+          const parentTabs = tabObject[keys[parentIndex]];
+          const needMoveTabs = tabObject[keys[i]];
+          if(parentTabs.length+needMoveTabs.length<setting.tabMax){
+            parentTabs.push(...needMoveTabs);
+            delete tabObject[keys[i]]
+            moved = true;
+          }else{
+            parentIndex++
+          }
+        }
+      }
+    }
+    let canCombineKey = 'combine';
     for(let i in tabObject) {
-      if(tabObject[i].length<2 && i!=='combine'){
-        tabObject.combine.push(...tabObject[i]);
+      if(tabObject[i].length<2 && i!==canCombineKey){
+        tabObject[canCombineKey].push(...tabObject[i]);
         delete tabObject[i];
       }
     }
-
-
     const windowTabs={}
     for(let i in tabObject){
       if(tabObject[i].length===0) continue;
@@ -104,6 +125,7 @@ const reMapWindow = debounce(function() {
   chrome.windows.getAll({populate:true}, function(result){
     chrome.tabs.query({active:true,currentWindow:true}, function(tabs) {
       const tab = tabs[0];
+      if(!tab) return;
       const currentId = tab.windowId;
       const windows = result.filter((item)=>{
         return item.tabs.length>0
@@ -113,46 +135,93 @@ const reMapWindow = debounce(function() {
         return window.id===currentId?1:-1
       });
 
+      if(windows.length===0) return;
+
       let firstWindow = {
         width: window.screen.availWidth-(windows.length-1)*setting.distanceLeft,
         height: window.screen.availHeight,
         left: window.screen.availLeft,
         top: window.screen.availTop,
       };
-
-      // (function updateWindow(windows,{top,left,width,height},index){
-      //
-      //   chrome.windows.update(item.id, {top,left,width,height,focused:true},function () {
-      //     updateWindow()
-      //   })
-      // })(windows,{top:0, left:0, screenWidth,screenHeight},0);
-      if(windows.length===0) return;
-      // chrome.windows.update(windows[windows.length-1].id,
-      //   {
-      //     top:firstWindow.top,
-      //     left:firstWindow.left,
-      //     width:firstWindow.width-(windows.length-1)*setting.distanceLeft,
-      //     height:firstWindow.height,focused:false,drawAttention:false},function (result) {
-      //   firstWindow = result;
-      //     mapWindow();
-      // });
+      // chrome.tabs.executeScript(null,{code:'const w = window.screen.availWidth;const h = window.screen.availHeight;[w,h]',matchAboutBlank:true},function(result){
+      //   console.log(result)
+      //   if(result[0]){
+      //     firstWindow.width = result[0][0] || window.screen.availWidth
+      //     firstWindow.height = result[0][1] || window.screen.availHeight
+      //   }
+      // })
 
       mapWindow();
+      
       function mapWindow() {
         canMap = false;
         let count = windows.length;
-        windows.forEach((item,index)=>{
+        //
+        // let index = 0;
+        // const top = index*setting.distanceTop+firstWindow.top;
+        // const left = firstWindow.left + index*setting.distanceLeft;
+        // const width = firstWindow.width - setting.distanceLeft;
+        // const height = firstWindow.height-index*setting.distanceTop-70;
+
+        doMove(0);
+
+        function doMove(index) {
+          if(index>=windows.length){
+            canMap = true;
+            return;
+          };
           const top = index*setting.distanceTop+firstWindow.top;
-          const left = firstWindow.left //+index*setting.distanceLeft;
-          const width =  firstWindow.width;
+          const left = firstWindow.left + index*setting.distanceLeft;
+          const width = firstWindow.width;
           const height = firstWindow.height-index*setting.distanceTop;
-          // console.log(item.id,[top,left,width,height],index);
-          chrome.windows.update(item.id, {top,left,width,height,focused:true,drawAttention:true},function () {
-            count--;
-            if(count===0){
-              canMap = true;
-            }
+          console.log(top,left,width,height)
+          move(windows[index],{top,left,width,height},function () {
+            chrome.windows.update(windows[index].id,{focused:true},function(){
+              doMove(index+1);
+            })
           })
+        }
+      }
+      function move(window,targetPosition,callback,index=0) {
+        const distance = targetPosition.top-window.top;
+        const absDistance = Math.abs(distance);
+        if(absDistance<=1&&index>0){
+          callback();
+          return;
+        };
+
+        let step = 1;
+        if(absDistance>200){
+          step = Math.floor(absDistance/4)+1;
+        } else if(absDistance>81){
+          step = Math.floor(Math.sqrt(absDistance))+1;
+        } else if(absDistance>50) {
+          step = Math.floor(absDistance/8)+1;
+        }
+        else{
+          step = Math.floor(absDistance/6)+1
+        }
+        step = Math.min(10,step);
+        // 跨象限时直接移动到0
+        if(targetPosition.top*window.top<0){
+          step = 0-window.top;
+        }
+        const nextTop = window.top+(distance>0?step:-step);
+        chrome.windows.update(window.id, {
+          drawAttention:false,
+          focused:false,
+          top:nextTop,
+          left:targetPosition.left,
+          width:targetPosition.width,
+          height:targetPosition.height
+        },function (result) {
+              const a = Math.abs(result.top-targetPosition.top);
+              if(a<=1||index>1000){
+                console.log(a,index);
+                callback(result)
+              }else{
+                move(result,targetPosition,callback,index+1);
+              }
         })
       }
     })
@@ -161,9 +230,11 @@ const reMapWindow = debounce(function() {
 
 
 const setting = {
+    maxWindow:3,
+    tabMax: 8,
     moveToCurrentWindow: true,
-    distanceTop: 34,
-    distanceLeft: window.screen.availWidth>1200?24:16,
+    distanceTop: 36,
+    distanceLeft: window.screen.availWidth>1600?24:16,
     matchExact: false,
 };
 
@@ -214,7 +285,7 @@ chrome.tabs.onUpdated.addListener(function(tabId,changeInfo,tab) {
             chrome.tabs.highlight({windowId:tab.windowId,tabs:[tab.index]})
           });
         } else{
-          chrome.windows.update(targetWindowId, {focused:true},function(){
+          chrome.windows.update(targetWindowId, {focused:false},function(){
             chrome.tabs.highlight({windowId:targetWindowId, tabs:[index]},function () {
               chrome.tabs.remove([tabId])
             });
@@ -244,11 +315,12 @@ chrome.browserAction.onClicked.addListener(function(tab) {
   autoSort()
 });
 let canMap = true;
-chrome.windows.onFocusChanged.addListener(function(window){
-  if(window===-1) return;
-  if(canMap){
-    reMapWindow();
+let lastWindowId = null;
+chrome.windows.onFocusChanged.addListener(function(win){
+  if(canMap&&lastWindowId!==win&&win!==-1){
+    // reMapWindow();
   }
+  lastWindowId = win===-1?lastWindowId:win;
 });
 function debounce(func, wait) {
   let timeout;
