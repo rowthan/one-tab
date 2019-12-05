@@ -369,10 +369,26 @@ class AddSection extends React.Component{
 }
 
 
+class Resize extends React.Component{
+    autoSort() {
+        chrome.extension.sendRequest({type: "autoSort", params:{sizeType:1}})
+    }
+    render() {
+        return (
+          <div>
+              <button onClick={this.autoSort}>
+                  智能整理窗口
+              </button>
+          </div>
+        )
+    }
+
+}
 
 ReactDOM.render(
     <div>
-        <Frames/>
+        <Resize></Resize>
+        {/*<Frames/>*/}
         {/*<AddSection/>*/}
     </div>,
     document.getElementById('popup')
