@@ -79,6 +79,7 @@ class Frames extends React.Component{
                           <button onClick={this.autoSort}>
                             智能整理窗口
                           </button>
+                          <span>邀您使用「智能整理窗口」功能。UI比稿功能即将下线，同类功能请前往 <a target='_blank' href="https://chrome.google.com/webstore/detail/copy-pixel/iljifliapaimkofafkddpgkfkmnocajf">copy-pixel</a></span>
                         </div>
 
                     </div>

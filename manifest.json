@@ -2,7 +2,7 @@
     "manifest_version": 2,
     "name": "__MSG_extensionName__",
     "short_name": "__MSG_extensionName__",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "__MSG_extensionDescription__",
     "default_locale": "zh_CN",
     "icons": {
@@ -23,6 +23,7 @@
       "webRequestBlocking",
       "http://*/*",
       "https://*/*",
+      "system.display",
       "contextMenus"
     ],
   "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
@@ -50,13 +51,5 @@
     "background": {
       "scripts": ["scripts/background.js"],
       "persistent": true
-    },
-    "content_scripts": [
-      {
-        "matches": [ "<all_urls>" ],
-        "js": ["scripts/content_script.js"],
-        "css":["css/content_script.css"],
-        "all_frames": true
-      }
-    ]
+    }
   }
