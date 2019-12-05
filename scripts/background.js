@@ -34,6 +34,47 @@ chrome.extension.onRequest.addListener(function (request,sender,sendResponse) {
 });
 //todo active tab 处理后任然需要激活
 const autoSort = function() {
+  chrome.tabs.query({active:true,currentWindow:true},function(activeTabs){
+    const activeTab = activeTabs[0] || {};
+    reMapTabs(activeTab.id);
+    chrome.system.display.getInfo(function(screens){
+      chrome.windows.getCurrent({}, function(result){
+        const currentTop = result.top;
+        const currenLeft = result.left;
+
+        const modelWindow = {
+          width: window.screen.availWidth,
+          height: window.screen.availHeight,
+          left: window.screen.availLeft,
+          top: window.screen.availTop,
+        }
+
+        console.log(screens)
+        for(let i=0; i<screens.length; i++) {
+          const screen = screens[i].bounds;
+          const minTop = screen.top;
+          const maxTop = screen.top+screen.height;
+          const minLeft = screen.left;
+          const maxLeft = screen.left+screen.width;
+
+          if(currentTop>=minTop && currentTop<=maxTop && currenLeft>=minLeft && currenLeft<=maxLeft){
+            modelWindow.width = screen.width;
+            modelWindow.height = screen.height-70;
+            modelWindow.left = screens[i].workArea.left;
+            modelWindow.top = screens[i].workArea.top;
+            console.log('yes get screen')
+            break;
+          }
+        }
+
+        reMapWindow(activeTab,modelWindow);
+        console.log(modelWindow)
+      })
+    });
+  })
+}
+
+const reMapTabs = function(activeTabId){
   chrome.tabs.query({}, function (tabs) {
     const tabObject = {
       combine:[]
@@ -47,19 +88,24 @@ const autoSort = function() {
         tabObject[key] = [tab]
       }
     });
-
+  
     const keys = Object.keys(tabObject).sort((key1,key2)=>{
-      return tabObject[key2].length-tabObject[key1].length
+      const length = tabObject[key2].length-tabObject[key1].length;
+      return length!==0?length:(key2>key1?1:-1);
     })
     const maxWindow = setting.maxWindow;
+    const maxTab = setting.tabMax;
     if(keys.length>maxWindow){
       let parentIndex = 0;
       for(let i=keys.length-1; i>= maxWindow; i--){
         let moved = false;
+        const needMoveTabs = tabObject[keys[i]];
+        if(needMoveTabs.length===0){
+          continue;
+        }
         while(parentIndex<maxWindow && !moved){
           const parentTabs = tabObject[keys[parentIndex]];
-          const needMoveTabs = tabObject[keys[i]];
-          if(parentTabs.length+needMoveTabs.length<setting.tabMax){
+          if(parentTabs.length+needMoveTabs.length<maxTab){
             parentTabs.push(...needMoveTabs);
             delete tabObject[keys[i]]
             moved = true;
@@ -67,13 +113,6 @@ const autoSort = function() {
             parentIndex++
           }
         }
-      }
-    }
-    let canCombineKey = 'combine';
-    for(let i in tabObject) {
-      if(tabObject[i].length<2 && i!==canCombineKey){
-        tabObject[canCombineKey].push(...tabObject[i]);
-        delete tabObject[i];
       }
     }
     const windowTabs={}
@@ -98,7 +137,7 @@ const autoSort = function() {
       }else{
         windowTabs[targetWindowId] = tabObject[i];
       }
-
+  
       const moveTabs = tabObject[i].filter(function(tab){
         return tab.windowId!==targetWindowId;
       }).map((tab)=>{
@@ -107,24 +146,27 @@ const autoSort = function() {
       if(moveTabs.length===0){
         continue;
       }
-
+  
       //复用没有tab页面的窗口
       if(targetWindowId===null){
         chrome.windows.create({tabId:tabObject[i][0].id}, function(win){
-          chrome.tabs.move(moveTabs,{windowId:win.id,index:-1})
+          chrome.tabs.move(moveTabs,{windowId:win.id,index:-1},function(){
+            chrome.tabs.update(activeTabId,{highlighted:true,active:true,autoDiscardable:true});
+          })
         })
       }else {
-        chrome.tabs.move(moveTabs,{windowId:targetWindowId,index:-1})
+        chrome.tabs.move(moveTabs,{windowId:targetWindowId,index:-1},function(){
+          chrome.tabs.update(activeTabId,{highlighted:true,active:true,autoDiscardable:true});
+        })
       }
     }
-    reMapWindow();
   });
 }
 
-const reMapWindow = debounce(function() {
+const reMapWindow = debounce(function(activeTab,modelWindow) {
   chrome.windows.getAll({populate:true}, function(result){
     chrome.tabs.query({active:true,currentWindow:true}, function(tabs) {
-      const tab = tabs[0];
+      const tab = activeTab||tabs[0];
       if(!tab) return;
       const currentId = tab.windowId;
       const windows = result.filter((item)=>{
@@ -137,42 +179,29 @@ const reMapWindow = debounce(function() {
 
       if(windows.length===0) return;
 
-      let firstWindow = {
-        width: window.screen.availWidth-(windows.length-1)*setting.distanceLeft,
-        height: window.screen.availHeight,
-        left: window.screen.availLeft,
-        top: window.screen.availTop,
-      };
-      // chrome.tabs.executeScript(null,{code:'const w = window.screen.availWidth;const h = window.screen.availHeight;[w,h]',matchAboutBlank:true},function(result){
-      //   console.log(result)
-      //   if(result[0]){
-      //     firstWindow.width = result[0][0] || window.screen.availWidth
-      //     firstWindow.height = result[0][1] || window.screen.availHeight
-      //   }
-      // })
+      let firstWindow = modelWindow
+      // Object.assign({
+      //   width: window.screen.availWidth-(windows.length-1)*setting.distanceLeft,
+      //   height: window.screen.availHeight,
+      //   left: window.screen.availLeft,
+      //   top: window.screen.availTop,
+      // },modelWindow);
 
       mapWindow();
       
       function mapWindow() {
         canMap = false;
-        let count = windows.length;
-        //
-        // let index = 0;
-        // const top = index*setting.distanceTop+firstWindow.top;
-        // const left = firstWindow.left + index*setting.distanceLeft;
-        // const width = firstWindow.width - setting.distanceLeft;
-        // const height = firstWindow.height-index*setting.distanceTop-70;
-
         doMove(0);
 
         function doMove(index) {
           if(index>=windows.length){
             canMap = true;
+            chrome.tabs.update(tab.id,{highlighted:true,active:true})
             return;
           };
           const top = index*setting.distanceTop+firstWindow.top;
           const left = firstWindow.left + index*setting.distanceLeft;
-          const width = firstWindow.width;
+          const width = firstWindow.width-(windows.length-index+1)*setting.distanceLeft;
           const height = firstWindow.height-index*setting.distanceTop;
           console.log(top,left,width,height)
           move(windows[index],{top,left,width,height},function () {
@@ -202,9 +231,9 @@ const reMapWindow = debounce(function() {
           step = Math.floor(absDistance/6)+1
         }
         step = Math.min(10,step);
-        // 跨象限时直接移动到0
+        // 跨象限时直接移动到位
         if(targetPosition.top*window.top<0){
-          step = 0-window.top;
+          step = absDistance;
         }
         const nextTop = window.top+(distance>0?step:-step);
         chrome.windows.update(window.id, {
@@ -217,7 +246,6 @@ const reMapWindow = debounce(function() {
         },function (result) {
               const a = Math.abs(result.top-targetPosition.top);
               if(a<=1||index>1000){
-                console.log(a,index);
                 callback(result)
               }else{
                 move(result,targetPosition,callback,index+1);
@@ -230,8 +258,8 @@ const reMapWindow = debounce(function() {
 
 
 const setting = {
-    maxWindow:3,
-    tabMax: 8,
+    maxWindow:4,
+    tabMax: 11,
     moveToCurrentWindow: true,
     distanceTop: 36,
     distanceLeft: window.screen.availWidth>1600?24:16,
