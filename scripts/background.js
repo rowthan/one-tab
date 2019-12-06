@@ -1,5 +1,5 @@
 const setting = {
-  maxWindow:3,
+  maxWindow:4,
   tabMax: 11,
   moveToCurrentWindow: true,
   distanceTop: 36,
@@ -137,7 +137,18 @@ const autoSort = function() {
           }
         }
 
-        reMapWindow(activeTab,[modelWindow]);
+        const models = [];
+        for(let i=0; i<setting.maxWindow; i++) {
+
+          models.push({
+            width: modelWindow.width,
+            height: modelWindow.height,
+            top: modelWindow.top + i*setting.distanceTop,
+            left: modelWindow.left + i*setting.distanceLeft,
+          })
+        }
+
+        reMapWindow(activeTab,models);
       })
     });
   })
@@ -271,10 +282,10 @@ const reMapWindow = debounce(function(activeTab,modelWindows) {
             chrome.tabs.update(tab.id,{highlighted:true,active:true});
             return;
           };
-          const top = firstWindow.top + index*setting.distanceTop;
-          const left = firstWindow.left + index*setting.distanceLeft;
-          const width = firstWindow.width - (windows.length-index+1)*setting.distanceLeft;
-          const height = firstWindow.height - index*setting.distanceTop;
+          const top = firstWindow.top;
+          const left = firstWindow.left;
+          const width = firstWindow.width; //- (windows.length-index+1)*setting.distanceLeft;
+          const height = firstWindow.height;
           move(windows[index],{top,left,width,height},function () {
             chrome.windows.update(windows[index].id,{focused:true},function(){
               doMove(index+1);
