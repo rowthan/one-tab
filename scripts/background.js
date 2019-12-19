@@ -318,6 +318,7 @@ const reMapWindow = debounce(function(activeTab,modelWindows) {
           step = absDistance;
         }
         const nextTop = window.top+(distance>0?step:-step);
+        // 多布局窗口不互相遮挡情况下，同时移动
         chrome.windows.update(window.id, {
           drawAttention:false,
           focused:false,
